@@ -38,7 +38,7 @@ export function getCachedGoogleUser(): User | null {
 /**
  * Inicia a autenticação com Google para obter autorização no Google Drive.
  */
-export async function connectGoogleDrive(): Promise<{ user: User; accessToken: string }> {
+export async function connectGoogleDrive(): Promise<{ user: User; accessToken: string } | null> {
   const provider = new GoogleAuthProvider();
   provider.addScope(SCOPE_DRIVE_FILE);
   provider.setCustomParameters({
@@ -62,6 +62,21 @@ export async function connectGoogleDrive(): Promise<{ user: User; accessToken: s
       accessToken: cachedAccessToken,
     };
   } catch (error: any) {
+    // Quando o usuário fecha ou cancela a janela pop-up, tratamos graciosamente sem emitir console.error
+    if (
+      error?.code === 'auth/popup-closed-by-user' ||
+      error?.code === 'auth/cancelled-popup-request' ||
+      error?.message?.includes('popup-closed-by-user')
+    ) {
+      console.info('[GoogleDrive] Janela de login fechada pelo usuário.');
+      return null;
+    }
+
+    if (error?.code === 'auth/popup-blocked') {
+      console.warn('[GoogleDrive] A janela pop-up foi bloqueada pelo navegador.');
+      throw new Error('A janela pop-up foi bloqueada pelo navegador. Permita pop-ups para este site para conectar o Google Drive.');
+    }
+
     console.error('[GoogleDrive] Erro na autenticação com o Google:', error);
     throw error;
   }

@@ -38,6 +38,7 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [driveConnected, setDriveConnected] = useState<boolean>(isDriveConnected());
 
   const loadTasks = async () => {
     if (!user) return;
@@ -480,7 +481,7 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
                             </button>
                           </div>
 
-                          {isDriveConnected() ? (
+                          {driveConnected || isDriveConnected() ? (
                             <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
                               <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                               <span>Esta foto será arquivada no seu Google Drive corporativo.</span>
@@ -492,7 +493,10 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
                                 type="button"
                                 onClick={async () => {
                                   try {
-                                    await connectGoogleDrive();
+                                    const res = await connectGoogleDrive();
+                                    if (res) {
+                                      setDriveConnected(true);
+                                    }
                                   } catch {}
                                 }}
                                 className="text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer shrink-0"

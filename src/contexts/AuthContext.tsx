@@ -54,70 +54,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Initialize session & bootstrap Firestore
-  useEffect(() => {
-    let isMounted = true;
+  const loadRelationsLocal = (profile: Profile) => {
+    if (profile.company_id) {
+      const companies = DataStore.getCompaniesLocal();
+      const comp = companies.find(c => c.id === profile.company_id) || null;
+      setCompany(comp);
 
-    // Failsafe timeout: garante que nunca fique preso na tela de carregamento
-    const failsafe = setTimeout(() => {
-      if (isMounted) {
-        setIsLoading(false);
+      if (profile.property_id) {
+        const properties = DataStore.getPropertiesLocal(profile.company_id);
+        const prop = properties.find(p => p.id === profile.property_id) || null;
+        setProperty(prop);
+      } else {
+        setProperty(null);
       }
-    }, 2500);
-
-    const initSession = async () => {
-      try {
-        // Iniciar população do Firestore em background sem travar a interface
-        DataStore.seedFirestoreIfEmpty().catch(err => {
-          console.warn('Aviso de seed Firestore em background:', err);
-        });
-
-        const savedUserJson = safeGetLocal<Profile | null>(AUTH_STORAGE_KEY, null);
-        const demoStored = safeGetLocal<string>(DEMO_MODE_KEY, 'true');
-        if (isMounted) {
-          setIsDemoMode(demoStored !== 'false');
-        }
-
-        if (savedUserJson) {
-          const parsedUser = savedUserJson;
-          if (isMounted) {
-            setUser(parsedUser);
-          }
-          try {
-            await loadRelations(parsedUser);
-          } catch (relErr) {
-            console.warn('Erro ao carregar relações do perfil:', relErr);
-          }
-          
-          // Auto route if on /login
-          if (window.location.pathname === '/' || window.location.pathname === '/login') {
-            routeUser(parsedUser.role);
-          } else {
-            if (isMounted) setCurrentPath(window.location.pathname);
-          }
-        } else {
-          // Default to login
-          if (isMounted) {
-            setCurrentPath(window.location.pathname === '/' ? '/login' : window.location.pathname);
-          }
-        }
-      } catch (err) {
-        console.error('Erro inicializando sessão:', err);
-      } finally {
-        clearTimeout(failsafe);
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initSession();
-
-    return () => {
-      isMounted = false;
-      clearTimeout(failsafe);
-    };
-  }, []);
+    } else {
+      setCompany(null);
+      setProperty(null);
+    }
+  };
 
   const loadRelations = async (profile: Profile) => {
     if (profile.company_id) {
@@ -157,52 +111,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signIn = async (email: string, password?: string): Promise<{ success: boolean; message?: string }> => {
-    setIsLoading(true);
+  // Initialize session & bootstrap Firestore
+  useEffect(() => {
+    let isMounted = true;
 
-    // Se Firebase Auth estiver disponível e não for usuário demo simulado
-    if (isFirebaseConfigured && auth && password && !email.endsWith('@demo.com')) {
+    const initSession = async () => {
       try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        if (userCredential.user) {
-          // Buscar perfil no Firestore
-          const q = query(collection(db, 'profiles'), where('email', '==', email.toLowerCase().trim()));
-          const snap = await getDocs(q);
+        // Iniciar população do Firestore em background sem travar a interface
+        DataStore.seedFirestoreIfEmpty().catch(err => {
+          console.warn('Aviso de seed Firestore em background:', err);
+        });
 
-          if (!snap.empty) {
-            const profileData = snap.docs[0].data() as Profile;
-            if (profileData.status === 'Inativo') {
-              await firebaseSignOut(auth);
-              setIsLoading(false);
-              return { success: false, message: 'Seu acesso está desativado. Entre em contato com o administrador.' };
-            }
+        const savedUserJson = safeGetLocal<Profile | null>(AUTH_STORAGE_KEY, null);
+        const demoStored = safeGetLocal<string>(DEMO_MODE_KEY, 'true');
+        if (isMounted) {
+          setIsDemoMode(demoStored !== 'false');
+        }
 
-            setUser(profileData);
-            safeSetLocal(AUTH_STORAGE_KEY, profileData);
-            setIsDemoMode(false);
-            safeSetLocal(DEMO_MODE_KEY, 'false');
-            await loadRelations(profileData);
-            routeUser(profileData.role);
-            setIsLoading(false);
-            return { success: true };
+        if (savedUserJson) {
+          const parsedUser = savedUserJson;
+          if (isMounted) {
+            setUser(parsedUser);
+            loadRelationsLocal(parsedUser);
+          }
+          // Sincronizar relações atualizadas em background
+          loadRelations(parsedUser).catch(() => {});
+          
+          // Auto route if on /login
+          if (window.location.pathname === '/' || window.location.pathname === '/login') {
+            routeUser(parsedUser.role);
+          } else {
+            if (isMounted) setCurrentPath(window.location.pathname);
+          }
+        } else {
+          // Default to login
+          if (isMounted) {
+            setCurrentPath(window.location.pathname === '/' ? '/login' : window.location.pathname);
           }
         }
-      } catch (e: any) {
-        console.warn('Falha na autenticação Firebase Auth, tentando consulta ao banco Firestore:', e?.message || e);
+      } catch (err) {
+        console.error('Erro inicializando sessão:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const signIn = async (email: string, password?: string): Promise<{ success: boolean; message?: string }> => {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // 1. Obter perfis no cache local para resposta imediata
+    let profiles = DataStore.getProfilesLocal();
+    let matched = profiles.find(p => p.email.toLowerCase().trim() === normalizedEmail);
+
+    // 2. Se não encontrar localmente e o Firebase estiver ativo, busca no Firestore
+    if (!matched && isFirebaseConfigured) {
+      try {
+        const remoteProfiles = await DataStore.getProfiles();
+        matched = remoteProfiles.find(p => p.email.toLowerCase().trim() === normalizedEmail);
+      } catch (err) {
+        console.warn('Erro buscando perfil no Firestore:', err);
       }
     }
 
-    // Consulta ao Firestore / LocalStore para perfis cadastrados
-    const profiles = await DataStore.getProfiles();
-    const matched = profiles.find(p => p.email.toLowerCase().trim() === email.toLowerCase().trim());
-
     if (!matched) {
-      setIsLoading(false);
       return { success: false, message: 'Usuário não cadastrado no sistema.' };
     }
 
     if (matched.status === 'Inativo') {
-      setIsLoading(false);
       return { success: false, message: 'Seu acesso está desativado. Entre em contato com o administrador.' };
     }
 
@@ -210,7 +194,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (password) {
       const expectedPassword = matched.password || '123456';
       if (password !== expectedPassword) {
-        setIsLoading(false);
         return { 
           success: false, 
           message: 'Senha incorreta. Verifique a senha digitada ou solicite a redefinição direta ao Administrador DEV.' 
@@ -220,20 +203,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Verifica status da empresa se não for DEV
     if (matched.role !== 'DEV' && matched.company_id) {
-      const companies = await DataStore.getCompanies();
+      const companies = DataStore.getCompaniesLocal();
       const comp = companies.find(c => c.id === matched.company_id);
       if (comp && comp.status === 'Inativa') {
-        setIsLoading(false);
         return { success: false, message: 'A empresa deste usuário está inativa. Entre em contato com o administrador.' };
       }
     }
 
+    // Sucesso imediato: define o usuário e relações locais instantaneamente
     setUser(matched);
     safeSetLocal(AUTH_STORAGE_KEY, matched);
-    await loadRelations(matched);
-    await DataStore.logAction(matched, 'login', 'auth', matched.id);
+    loadRelationsLocal(matched);
+
+    // Carrega em background no Firestore e grava log
+    loadRelations(matched).catch(() => {});
+    DataStore.logAction(matched, 'login', 'auth', matched.id).catch(() => {});
+
+    // Redireciona automaticamente para o dashboard do papel
     routeUser(matched.role);
-    setIsLoading(false);
     return { success: true };
   };
 
@@ -246,7 +233,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
     if (user) {
-      await DataStore.logAction(user, 'logout', 'auth', user.id);
+      await DataStore.logAction(user, 'logout', 'auth', user.id).catch(() => {});
     }
     setUser(null);
     setCompany(null);
@@ -258,18 +245,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const switchDemoRole = async (targetRole: UserRole) => {
-    setIsLoading(true);
     setIsDemoMode(true);
     safeSetLocal(DEMO_MODE_KEY, 'true');
 
-    const profiles = await DataStore.getProfiles();
+    const profiles = DataStore.getProfilesLocal();
     const target = profiles.find(p => p.role === targetRole) || initialProfiles.find(p => p.role === targetRole)!;
     setUser(target);
     safeSetLocal(AUTH_STORAGE_KEY, target);
-    await loadRelations(target);
-    await DataStore.logAction(target, `mudança de perfil em demonstração (${targetRole})`, 'auth', target.id);
+    loadRelationsLocal(target);
+    loadRelations(target).catch(() => {});
+    DataStore.logAction(target, `mudança de perfil em demonstração (${targetRole})`, 'auth', target.id).catch(() => {});
     routeUser(targetRole);
-    setIsLoading(false);
   };
 
   const requestPasswordReset = async (email: string): Promise<boolean> => {

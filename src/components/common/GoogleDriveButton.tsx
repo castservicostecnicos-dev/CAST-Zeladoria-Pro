@@ -21,11 +21,19 @@ export const GoogleDriveButton: React.FC<GoogleDriveButtonProps> = ({ compact = 
     setLoading(true);
     try {
       const res = await connectGoogleDrive();
+      if (!res) {
+        // Usuário cancelou ou fechou a janela de autenticação
+        return;
+      }
       setConnected(true);
       setGoogleUser(res.user);
       if (onConnected) onConnected();
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') {
+      if (
+        err?.code !== 'auth/popup-closed-by-user' && 
+        err?.code !== 'auth/cancelled-popup-request' &&
+        !err?.message?.includes('popup-closed-by-user')
+      ) {
         alert('Não foi possível conectar ao Google Drive: ' + (err?.message || 'Verifique as permissões.'));
       }
     } finally {

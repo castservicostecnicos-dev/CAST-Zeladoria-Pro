@@ -246,6 +246,11 @@ export class DataStore {
   }
 
   // ---- COMPANIES (DEV ROLE ONLY) ----
+  static getCompaniesLocal(): Company[] {
+    const list = getLocal<Company[]>(KEYS.COMPANIES, initialCompanies);
+    return list.filter(c => !c.deleted_at);
+  }
+
   static async getCompanies(): Promise<Company[]> {
     if (isFirebaseConfigured) {
       try {
@@ -325,6 +330,12 @@ export class DataStore {
   }
 
   // ---- PROPERTIES (EMPRESA / ADM_PREDIAL) ----
+  static getPropertiesLocal(companyId?: string): Property[] {
+    const list = getLocal<Property[]>(KEYS.PROPERTIES, initialProperties);
+    if (!companyId) return list;
+    return list.filter(p => p.company_id === companyId);
+  }
+
   static async getProperties(companyId: string): Promise<Property[]> {
     if (isFirebaseConfigured) {
       try {
@@ -365,6 +376,15 @@ export class DataStore {
   }
 
   // ---- PROFILES / USERS (EMPRESA & DEV) ----
+  static getProfilesLocal(companyId?: string, roleFilter?: UserRole): Profile[] {
+    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles).filter(p => !p.deleted_at);
+    return list.filter(p => {
+      if (companyId && p.company_id !== companyId) return false;
+      if (roleFilter && p.role !== roleFilter) return false;
+      return true;
+    });
+  }
+
   static async getProfiles(companyId?: string, roleFilter?: UserRole): Promise<Profile[]> {
     if (isFirebaseConfigured) {
       try {

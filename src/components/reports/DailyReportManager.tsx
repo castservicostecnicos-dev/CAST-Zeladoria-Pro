@@ -114,7 +114,12 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
     setDriveUploadResult(null);
     try {
       if (!isDriveConnected()) {
-        await connectGoogleDrive();
+        const conn = await connectGoogleDrive();
+        if (!conn) {
+          // Usuário cancelou ou fechou a janela do Google Drive
+          setIsSavingToDrive(false);
+          return;
+        }
       }
 
       const doc = generateDailyReportPDF({
@@ -136,7 +141,11 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
       const uploadRes = await uploadPdfToDrive(pdfBlob, filename);
       setDriveUploadResult(uploadRes);
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') {
+      if (
+        err?.code !== 'auth/popup-closed-by-user' &&
+        err?.code !== 'auth/cancelled-popup-request' &&
+        !err?.message?.includes('popup-closed-by-user')
+      ) {
         console.error('Erro ao enviar relatório para o Google Drive:', err);
         alert('Erro ao salvar no Google Drive: ' + (err?.message || 'Verifique as permissões.'));
       }
