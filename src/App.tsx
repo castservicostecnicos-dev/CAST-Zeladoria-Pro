@@ -17,6 +17,16 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [tabHistory, setTabHistory] = useState<string[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [showDirectAccess, setShowDirectAccess] = useState<boolean>(false);
+  const [forceBypassLoading, setForceBypassLoading] = useState<boolean>(false);
+
+  // Se o carregamento demorar mais de 2 segundos, exibe botão de acesso direto
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowDirectAccess(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleSelectTab = (newTab: string) => {
     if (newTab !== activeTab) {
@@ -36,11 +46,20 @@ function AppContent() {
     }
   };
 
-  if (isLoading) {
+  if (isLoading && !forceBypassLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white">
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white px-4 text-center">
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-semibold text-slate-400">Carregando Zeladoria Pro...</p>
+        <p className="text-sm font-semibold text-slate-300">Carregando Zeladoria Pro...</p>
+        {showDirectAccess && (
+          <button
+            type="button"
+            onClick={() => setForceBypassLoading(true)}
+            className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-lg border border-slate-700 transition-colors shadow-sm"
+          >
+            Acessar Sistema Agora
+          </button>
+        )}
       </div>
     );
   }

@@ -56,38 +56,67 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Initialize session & bootstrap Firestore
   useEffect(() => {
+    let isMounted = true;
+
+    // Failsafe timeout: garante que nunca fique preso na tela de carregamento
+    const failsafe = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 2500);
+
     const initSession = async () => {
       try {
-        // Garantir dados no Firestore caso esteja vazio
-        await DataStore.seedFirestoreIfEmpty();
+        // Iniciar população do Firestore em background sem travar a interface
+        DataStore.seedFirestoreIfEmpty().catch(err => {
+          console.warn('Aviso de seed Firestore em background:', err);
+        });
 
         const savedUserJson = safeGetLocal<Profile | null>(AUTH_STORAGE_KEY, null);
         const demoStored = safeGetLocal<string>(DEMO_MODE_KEY, 'true');
-        setIsDemoMode(demoStored !== 'false');
+        if (isMounted) {
+          setIsDemoMode(demoStored !== 'false');
+        }
 
         if (savedUserJson) {
           const parsedUser = savedUserJson;
-          setUser(parsedUser);
-          await loadRelations(parsedUser);
+          if (isMounted) {
+            setUser(parsedUser);
+          }
+          try {
+            await loadRelations(parsedUser);
+          } catch (relErr) {
+            console.warn('Erro ao carregar relações do perfil:', relErr);
+          }
           
           // Auto route if on /login
           if (window.location.pathname === '/' || window.location.pathname === '/login') {
             routeUser(parsedUser.role);
           } else {
-            setCurrentPath(window.location.pathname);
+            if (isMounted) setCurrentPath(window.location.pathname);
           }
         } else {
           // Default to login
-          setCurrentPath(window.location.pathname === '/' ? '/login' : window.location.pathname);
+          if (isMounted) {
+            setCurrentPath(window.location.pathname === '/' ? '/login' : window.location.pathname);
+          }
         }
       } catch (err) {
         console.error('Erro inicializando sessão:', err);
       } finally {
-        setIsLoading(false);
+        clearTimeout(failsafe);
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     };
 
     initSession();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(failsafe);
+    };
   }, []);
 
   const loadRelations = async (profile: Profile) => {

@@ -59,6 +59,17 @@ function setLocal<T>(key: string, data: T): void {
   safeSetLocal<T>(key, data);
 }
 
+/**
+ * Timeout de segurança para evitar que requisições do Firestore travem o carregamento
+ */
+export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3000): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms ao conectar ao Firestore`)), timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
+}
+
 export class DataStore {
   private static isInitialized = false;
 
@@ -71,7 +82,7 @@ export class DataStore {
     this.isInitialized = true;
 
     try {
-      const companiesSnap = await getDocs(collection(db, 'companies'));
+      const companiesSnap = await withTimeout(getDocs(collection(db, 'companies')), 3000);
       if (!companiesSnap.empty) {
         // Já possui dados no Firestore
         return;
@@ -128,7 +139,7 @@ export class DataStore {
         batch.set(ref, n);
       });
 
-      await batch.commit();
+      await withTimeout(batch.commit(), 4000);
       console.log('Firestore populado com sucesso!');
     } catch (err) {
       console.warn('Aviso durante verificação inicial do Firestore:', err);
@@ -177,7 +188,7 @@ export class DataStore {
           orderBy('created_at', 'desc'),
           limit(50)
         );
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           const list = snap.docs.map(d => d.data() as Notification);
           setLocal(KEYS.NOTIFICATIONS, list);
@@ -238,7 +249,7 @@ export class DataStore {
   static async getCompanies(): Promise<Company[]> {
     if (isFirebaseConfigured) {
       try {
-        const snap = await getDocs(collection(db, 'companies'));
+        const snap = await withTimeout(getDocs(collection(db, 'companies')), 3000);
         if (!snap.empty) {
           const list = snap.docs
             .map(d => d.data() as Company)
@@ -318,7 +329,7 @@ export class DataStore {
     if (isFirebaseConfigured) {
       try {
         const q = query(collection(db, 'properties'), where('company_id', '==', companyId));
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           const list = snap.docs.map(d => d.data() as Property);
           return list;
@@ -364,7 +375,7 @@ export class DataStore {
         if (roleFilter) {
           q = query(q, where('role', '==', roleFilter));
         }
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           const list = snap.docs
             .map(d => d.data() as Profile)
@@ -490,7 +501,7 @@ export class DataStore {
           q = query(q, where('property_id', '==', user.property_id));
         }
 
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           const list = snap.docs
             .map(d => d.data() as Task)
@@ -709,7 +720,7 @@ export class DataStore {
     if (isFirebaseConfigured) {
       try {
         const q = query(collection(db, 'routines'), where('company_id', '==', companyId));
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           return snap.docs.map(d => d.data() as Routine);
         }
@@ -787,7 +798,7 @@ export class DataStore {
         if (propertyId) {
           q = query(q, where('property_id', '==', propertyId));
         }
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           return snap.docs.map(d => d.data() as TaskRequest);
         }
@@ -954,7 +965,7 @@ export class DataStore {
         if (companyId) {
           q = query(collection(db, 'audit_logs'), where('company_id', '==', companyId), limit(100));
         }
-        const snap = await getDocs(q);
+        const snap = await withTimeout(getDocs(q), 3000);
         if (!snap.empty) {
           return snap.docs.map(d => d.data() as AuditLog);
         }
