@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Zeladoria Pro - Gestão Predial",
+  "short_name": "ZeladoriaPro",
+  "description": "Sistema completo para gestão de zeladoria, tarefas, rotinas e solicitações prediais.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

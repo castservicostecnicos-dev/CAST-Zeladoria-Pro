@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/firebase/firebase-tools/master/schema/firestore-blueprint.json",
+  "entities": {
+    "companies": {
+      "description": "Empresas clientes e prestadoras de serviço (Tenants)",
+      "fields": {
+        "legal_name": { "type": "string", "description": "Razão social" },
+        "trade_name": { "type": "string", "description": "Nome fantasia" },
+        "cnpj": { "type": "string", "description": "CNPJ da empresa" },
+        "email": { "type": "string", "description": "E-mail de contato" },
+        "phone": { "type": "string", "description": "Telefone principal" },
+        "address": { "type": "string", "description": "Endereço cadastral" },
+        "city": { "type": "string", "description": "Cidade" },
+        "state": { "type": "string", "description": "UF" },
+        "responsible_name": { "type": "string", "description": "Nome do responsável" },
+        "responsible_email": { "type": "string", "description": "E-mail do responsável" },
+        "responsible_phone": { "type": "string", "description": "Telefone do responsável" },
+        "status": { "type": "string", "description": "Status da empresa (Ativa ou Inativa)" },
+        "created_at": { "type": "string", "description": "Data ISO de criação" },
+        "updated_at": { "type": "string", "description": "Data ISO de atualização" },
+        "deleted_at": { "type": "string", "description": "Data ISO de soft delete" }
+      }
+    },
+    "properties": {
+      "description": "Empreendimentos e condomínios atendidos",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa contratada" },
+        "name": { "type": "string", "description": "Nome do condomínio" },
+        "address": { "type": "string", "description": "Endereço do condomínio" },
+        "city": { "type": "string", "description": "Cidade" },
+        "state": { "type": "string", "description": "UF" },
+        "status": { "type": "string", "description": "Ativo ou Inativo" },
+        "created_at": { "type": "string", "description": "Data ISO de criação" },
+        "updated_at": { "type": "string", "description": "Data ISO de atualização" }
+      }
+    },
+    "profiles": {
+      "description": "Perfis de usuários do sistema com controle RBAC",
+      "fields": {
+        "auth_user_id": { "type": "string", "description": "UID da autenticação" },
+        "company_id": { "type": "string", "description": "ID da empresa vinculada" },
+        "property_id": { "type": "string", "description": "ID do condomínio para ADM_PREDIAL" },
+        "role": { "type": "string", "description": "DEV, EMPRESA, ZELADOR, ADM_PREDIAL" },
+        "name": { "type": "string", "description": "Nome completo" },
+        "email": { "type": "string", "description": "E-mail de acesso" },
+        "phone": { "type": "string", "description": "Telefone ou WhatsApp" },
+        "cpf": { "type": "string", "description": "CPF cadastrado" },
+        "badge_number": { "type": "string", "description": "Matrícula do zelador" },
+        "birth_date": { "type": "string", "description": "Data de nascimento" },
+        "photo_url": { "type": "string", "description": "Foto do perfil" },
+        "status": { "type": "string", "description": "Ativo ou Inativo" },
+        "notes": { "type": "string", "description": "Anotações e observações" },
+        "created_at": { "type": "string", "description": "Data ISO de criação" },
+        "updated_at": { "type": "string", "description": "Data ISO de atualização" },
+        "deleted_at": { "type": "string", "description": "Soft delete timestamp" }
+      }
+    },
+    "tasks": {
+      "description": "Tarefas operacionais de zeladoria",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa prestadora" },
+        "property_id": { "type": "string", "description": "ID do condomínio" },
+        "title": { "type": "string", "description": "Título da tarefa" },
+        "description": { "type": "string", "description": "Descrição detalhada" },
+        "category": { "type": "string", "description": "Categoria da atividade" },
+        "priority": { "type": "string", "description": "BAIXA, NORMAL, ALTA, URGENTE" },
+        "status": { "type": "string", "description": "PENDENTE, ACEITA, EM_ANDAMENTO, CONCLUIDA, CANCELADA, ATRASADA" },
+        "assigned_to": { "type": "string", "description": "ID do perfil do zelador" },
+        "created_by": { "type": "string", "description": "ID do perfil que agendou" },
+        "requested_by": { "type": "string", "description": "ID do ADM Predial que solicitou" },
+        "scheduled_date": { "type": "string", "description": "Data prevista YYYY-MM-DD" },
+        "scheduled_time": { "type": "string", "description": "Hora prevista HH:mm" },
+        "deadline": { "type": "string", "description": "Prazo limite" },
+        "location": { "type": "string", "description": "Local de execução" },
+        "notes": { "type": "string", "description": "Observações internas" },
+        "recurrence": { "type": "string", "description": "Descrição da recorrência se houver" },
+        "completed_at": { "type": "string", "description": "Timestamp de conclusão" },
+        "completed_by": { "type": "string", "description": "Quem concluiu" },
+        "completion_description": { "type": "string", "description": "Relatório de conclusão obrigatório" },
+        "photos": { "type": "array", "description": "Lista de fotos comprobatórias com storage_path" },
+        "created_at": { "type": "string", "description": "Data ISO de criação" },
+        "updated_at": { "type": "string", "description": "Data ISO de atualização" },
+        "deleted_at": { "type": "string", "description": "Soft delete" }
+      }
+    },
+    "task_requests": {
+      "description": "Solicitações abertas pelo ADM Predial (Síndico)",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa" },
+        "property_id": { "type": "string", "description": "ID do condomínio" },
+        "requested_by": { "type": "string", "description": "ID do ADM Predial solicitante" },
+        "title": { "type": "string", "description": "Título da solicitação" },
+        "description": { "type": "string", "description": "Descrição do problema" },
+        "location": { "type": "string", "description": "Local no condomínio" },
+        "priority": { "type": "string", "description": "Prioridade sugerida" },
+        "desired_date": { "type": "string", "description": "Data desejada" },
+        "desired_time": { "type": "string", "description": "Hora desejada" },
+        "notes": { "type": "string", "description": "Observações" },
+        "photos": { "type": "array", "description": "Fotos anexadas" },
+        "status": { "type": "string", "description": "SOLICITADA, ANALISANDO, APROVADA, RECUSADA, CONVERTIDA_EM_TAREFA" },
+        "converted_task_id": { "type": "string", "description": "ID da tarefa gerada após aprovação" },
+        "rejection_reason": { "type": "string", "description": "Motivo da recusa" },
+        "created_at": { "type": "string", "description": "Data de abertura" },
+        "updated_at": { "type": "string", "description": "Data de atualização" }
+      }
+    },
+    "routines": {
+      "description": "Modelos de rotinas recorrentes de zeladoria",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa prestadora" },
+        "property_id": { "type": "string", "description": "ID do condomínio" },
+        "name": { "type": "string", "description": "Nome da rotina periódica" },
+        "description": { "type": "string", "description": "Procedimento" },
+        "location": { "type": "string", "description": "Local de aplicação" },
+        "category": { "type": "string", "description": "Categoria" },
+        "priority": { "type": "string", "description": "Prioridade padrão" },
+        "assigned_to": { "type": "string", "description": "Zelador escalado" },
+        "frequency": { "type": "string", "description": "diária, semanal, mensal, personalizada" },
+        "days_of_week": { "type": "array", "description": "Dias da semana" },
+        "scheduled_time": { "type": "string", "description": "Horário previsto" },
+        "start_date": { "type": "string", "description": "Início da vigência" },
+        "end_date": { "type": "string", "description": "Fim da vigência" },
+        "active": { "type": "boolean", "description": "Se a rotina está ativa gerando tarefas" },
+        "created_at": { "type": "string", "description": "Data de criação" },
+        "updated_at": { "type": "string", "description": "Data de atualização" }
+      }
+    },
+    "audit_logs": {
+      "description": "Trilha de auditoria das operações no sistema",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa afetada" },
+        "user_id": { "type": "string", "description": "ID do usuário executor" },
+        "user_name": { "type": "string", "description": "Nome do usuário" },
+        "action": { "type": "string", "description": "Ação executada" },
+        "entity_type": { "type": "string", "description": "Tipo da entidade" },
+        "entity_id": { "type": "string", "description": "ID da entidade" },
+        "metadata": { "type": "object", "description": "Dados adicionais de contexto" },
+        "created_at": { "type": "string", "description": "Data e hora do log" }
+      }
+    },
+    "notifications": {
+      "description": "Notificações internas dos usuários",
+      "fields": {
+        "company_id": { "type": "string", "description": "ID da empresa" },
+        "user_id": { "type": "string", "description": "ID do usuário destinatário" },
+        "type": { "type": "string", "description": "info, warning, success, alert" },
+        "title": { "type": "string", "description": "Título da notificação" },
+        "message": { "type": "string", "description": "Mensagem da notificação" },
+        "read": { "type": "boolean", "description": "Se já foi lida" },
+        "link": { "type": "string", "description": "Link de ação rápida" },
+        "created_at": { "type": "string", "description": "Data de envio" }
+      }
+    }
+  }
+}

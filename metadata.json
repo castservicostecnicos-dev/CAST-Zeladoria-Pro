@@ -1,0 +1,6 @@
+{
+  "name": "Criador de Aplicativo",
+  "description": "Desenvolvimento de aplicativo sob medida a partir de especificações e documentos de requisitos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

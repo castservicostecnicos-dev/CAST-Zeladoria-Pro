@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* 
+  Mobile Screen Constraint:
+  Prevent any horizontal overflow on mobile devices and restrict lateral width strictly to viewport width.
+*/
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Prevent tables, pre elements and images from expanding past mobile screen */
+table {
+  max-width: 100%;
+}
+
+img, video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 
+  Field Casing Rules:
+  - All text inputs and textareas display in UPPERCASE
+  - Email inputs display in lowercase
+  - Password inputs accept and display both casings (no alteration)
+  - Placeholders maintain standard readable casing
+*/
+input:not([type="password"]):not([type="email"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="date"]):not([type="time"]):not([type="datetime-local"]):not([type="number"]):not([type="color"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+textarea {
+  text-transform: uppercase;
+}
+
+/* Placeholders retain readable mixed casing */
+input::placeholder,
+textarea::placeholder {
+  text-transform: none;
+}
+
+/* Email fields are strictly lowercase */
+input[type="email"],
+input[name*="email" i],
+input[id*="email" i],
+input[placeholder*="email" i] {
+  text-transform: lowercase !important;
+}
+
+/* Password fields preserve exact casing as typed (accept both) */
+input[type="password"],
+input[name*="password" i],
+input[name*="senha" i],
+input[id*="password" i],
+input[id*="senha" i] {
+  text-transform: none !important;
+}
+
+/* Print Optimization for Daily Reports */
+@media print {
+  aside, 
+  header, 
+  nav, 
+  .print\:hidden {
+    display: none !important;
+  }
+
+  body, #root, main {
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .shadow-xs, .shadow-sm, .shadow-md, .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+}
