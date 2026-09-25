@@ -21,7 +21,8 @@ import {
   UserCheck,
   Sparkles,
   Terminal,
-  Code2
+  Code2,
+  ArrowLeft
 } from 'lucide-react';
 import { Company, UserRole, Profile } from '../../types';
 import { DataStore } from '../../services/store';
@@ -74,6 +75,11 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [companyToReset, setCompanyToReset] = useState<Company | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<{ id: string; name: string; email: string; role?: string } | null>(null);
+  const [newDirectPassword, setNewDirectPassword] = useState('');
+  const [confirmDirectPassword, setConfirmDirectPassword] = useState('');
+  const [showDirectPassword, setShowDirectPassword] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   // Company Form state
   const [formData, setFormData] = useState({
@@ -294,6 +300,74 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
     setDevToDelete(null);
     setShowDevDeleteModal(false);
     loadData();
+  };
+
+  const handleOpenResetForDev = (dev: Profile) => {
+    setUserToResetPassword({
+      id: dev.id,
+      name: dev.name,
+      email: dev.email,
+      role: 'Desenvolvedor DEV',
+    });
+    setNewDirectPassword('');
+    setConfirmDirectPassword('');
+    setShowResetModal(true);
+  };
+
+  const handleOpenResetForCompany = async (comp: Company) => {
+    setCompanyToReset(comp);
+    const allProfiles = await DataStore.getProfiles();
+    const compProfile = allProfiles.find(
+      p => p.company_id === comp.id || (p.email && comp.responsible_email && p.email.toLowerCase() === comp.responsible_email.toLowerCase())
+    );
+
+    setUserToResetPassword({
+      id: compProfile ? compProfile.id : comp.id,
+      name: comp.responsible_name || comp.trade_name,
+      email: comp.responsible_email || comp.email,
+      role: `Empresa: ${comp.trade_name}`,
+    });
+    setNewDirectPassword('');
+    setConfirmDirectPassword('');
+    setShowResetModal(true);
+  };
+
+  const handleGenerateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%';
+    let res = '';
+    for (let i = 0; i < 8; i++) {
+      res += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewDirectPassword(res);
+    setConfirmDirectPassword(res);
+    setShowDirectPassword(true);
+  };
+
+  const handleSaveDirectPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !userToResetPassword) return;
+
+    if (!newDirectPassword || newDirectPassword.length < 4) {
+      alert('A nova senha deve possuir ao menos 4 caracteres.');
+      return;
+    }
+
+    if (newDirectPassword !== confirmDirectPassword) {
+      alert('A confirmação de senha não confere. Por favor, digite a mesma senha nos dois campos.');
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      await DataStore.resetUserPassword(userToResetPassword.id, newDirectPassword, user);
+      alert(`Senha redefinida com sucesso para o usuário "${userToResetPassword.name}" (${userToResetPassword.email})!\n\nA nova senha já está ativa para acesso imediato no sistema sem necessidade de link por e-mail.`);
+      setShowResetModal(false);
+      setUserToResetPassword(null);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao salvar nova senha.');
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   // Metrics
@@ -592,11 +666,8 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
                         </button>
 
                         <button
-                          onClick={() => {
-                            setCompanyToReset(c);
-                            setShowResetModal(true);
-                          }}
-                          title="Redefinir / Recuperar acesso"
+                          onClick={() => handleOpenResetForCompany(c)}
+                          title="Redefinir senha diretamente"
                           className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
                         >
                           <KeyRound className="w-3.5 h-3.5" />
@@ -706,6 +777,14 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
                             className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => handleOpenResetForDev(d)}
+                            title="Redefinir senha diretamente"
+                            className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
                           </button>
 
                           <button
@@ -1111,38 +1190,87 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
         isDestructive={true}
       />
 
-      {/* Reset Password Modal */}
+      {/* Direct Password Reset Modal (Directly in Dashboard without email link) */}
       <Modal
         isOpen={showResetModal}
-        onClose={() => setShowResetModal(false)}
-        title="Recuperar / Redefinir Acesso da Empresa"
-        subtitle={`Empresa: ${companyToReset?.trade_name}`}
+        onClose={() => {
+          setShowResetModal(false);
+          setUserToResetPassword(null);
+        }}
+        title="Redefinir Senha Diretamente no Painel"
+        subtitle={userToResetPassword ? `${userToResetPassword.name} • ${userToResetPassword.email}` : 'Alteração imediata de credencial'}
       >
-        <div className="space-y-4 text-xs text-slate-600">
-          <p>
-            O disparo de recuperação de senha segue os padrões de segurança: um e-mail com link de redefinição único e seguro será enviado para o responsável <strong>{companyToReset?.responsible_email}</strong>.
-          </p>
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-800">
-            Por política de segurança estrita, a senha atual nunca é revelada para o administrador.
+        <form onSubmit={handleSaveDirectPassword} className="space-y-4 text-xs">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 leading-relaxed">
+            <span className="font-bold block mb-1">Acesso Direto DEV:</span>
+            A nova senha será salva <strong>diretamente no sistema</strong> sem o envio de link de recuperação por e-mail. O usuário poderá utilizá-la imediatamente para login.
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-bold text-slate-700">Nova Senha</label>
+              <button
+                type="button"
+                onClick={handleGenerateRandomPassword}
+                className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold cursor-pointer underline"
+              >
+                Gerar Senha Automática
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showDirectPassword ? 'text' : 'password'}
+                value={newDirectPassword}
+                onChange={(e) => setNewDirectPassword(e.target.value)}
+                placeholder="Digite a nova senha (mínimo 4 dígitos)"
+                required
+                minLength={4}
+                className="w-full border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowDirectPassword(!showDirectPassword)}
+                className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+              >
+                {showDirectPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="font-bold text-slate-700 block mb-1">Confirmar Nova Senha</label>
+            <input
+              type={showDirectPassword ? 'text' : 'password'}
+              value={confirmDirectPassword}
+              onChange={(e) => setConfirmDirectPassword(e.target.value)}
+              placeholder="Confirme a nova senha exatamente igual"
+              required
+              minLength={4}
+              className="w-full border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button
-              onClick={() => setShowResetModal(false)}
-              className="px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition cursor-pointer"
-            >
-              Fechar
-            </button>
-            <button
+              type="button"
               onClick={() => {
                 setShowResetModal(false);
-                alert(`Link de redefinição disparado para ${companyToReset?.responsible_email}!`);
+                setUserToResetPassword(null);
               }}
-              className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition cursor-pointer"
+              className="px-4 py-2 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition cursor-pointer"
             >
-              Disparar e-mail de redefinição
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isResettingPassword}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition cursor-pointer shadow-md disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <KeyRound className="w-4 h-4" />
+              <span>{isResettingPassword ? 'Gravando...' : 'Salvar Nova Senha'}</span>
             </button>
           </div>
-        </div>
+        </form>
       </Modal>
     </div>
   );

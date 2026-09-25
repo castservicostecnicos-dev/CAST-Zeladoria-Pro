@@ -20,8 +20,14 @@ import { DataStore } from '../../services/store';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { compressImage } from '../../lib/imageCompression';
+import { isDriveConnected, uploadBase64ImageToDrive, connectGoogleDrive } from '../../services/googleDriveService';
 
-export const ZeladorDashboard: React.FC = () => {
+export interface ZeladorDashboardProps {
+  onBack?: () => void;
+}
+
+export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) => {
   const { user } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -30,6 +36,7 @@ export const ZeladorDashboard: React.FC = () => {
   // Completion Form
   const [completionDescription, setCompletionDescription] = useState('');
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadTasks = async () => {
@@ -89,9 +96,24 @@ export const ZeladorDashboard: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      let finalPhotoUrl = photoPreview || undefined;
+
+      // Se houver foto e o Google Drive estiver conectado, envia diretamente para o Drive fora do ambiente local
+      if (photoPreview && isDriveConnected()) {
+        try {
+          const driveFile = await uploadBase64ImageToDrive(
+            photoPreview, 
+            `comprovante_tarefa_${selectedTask.id}_${Date.now()}.jpg`
+          );
+          finalPhotoUrl = driveFile.webViewLink;
+        } catch (driveErr) {
+          console.warn('[ZeladorDashboard] Falha ao enviar para o Drive, mantendo armazenamento comprimido:', driveErr);
+        }
+      }
+
       await DataStore.updateTaskStatus(selectedTask.id, 'CONCLUIDA', user, {
         completion_description: completionDescription,
-        photo_url: photoPreview || undefined,
+        photo_url: finalPhotoUrl,
       });
 
       // Joyful celebratory feedback
@@ -115,19 +137,36 @@ export const ZeladorDashboard: React.FC = () => {
   };
 
   // Simulated Camera / Image Upload (Section 13 & 34)
-  const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPhotoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      try {
+        setIsProcessingPhoto(true);
+        // Comprime para no máximo 1024px e qualidade 0.72 (~70-100KB)
+        const compressed = await compressImage(file, 1024, 1024, 0.72);
+        setPhotoPreview(compressed);
+      } catch (err) {
+        console.warn('[ZeladorDashboard] Erro ao otimizar foto:', err);
+      } finally {
+        setIsProcessingPhoto(false);
+      }
     }
   };
 
   return (
     <div className="w-full max-w-full sm:max-w-xl mx-auto space-y-4 pb-12 overflow-x-hidden">
+      {onBack && (
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180 text-slate-500" />
+            <span>Voltar ao Painel</span>
+          </button>
+        </div>
+      )}
+
       {/* Top Greeting Header (Section 13) */}
       <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white rounded-3xl p-6 shadow-md relative overflow-hidden">
         <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
@@ -412,42 +451,67 @@ export const ZeladorDashboard: React.FC = () => {
                         Adicionar Fotos Comprobatórias (Opcional)
                       </label>
                       <div className="flex items-center gap-3">
-                        <label className="flex-1 border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-xl p-3 text-center cursor-pointer transition bg-slate-50">
+                        <label className={`flex-1 border-2 border-dashed ${isProcessingPhoto ? 'border-amber-400 bg-amber-50' : 'border-slate-300 hover:border-blue-500 bg-slate-50'} rounded-xl p-3 text-center cursor-pointer transition`}>
                           <div className="flex items-center justify-center gap-2 text-slate-600 text-xs font-semibold">
-                            <Camera className="w-4 h-4 text-blue-600" />
-                            <span>Tirar Foto / Anexar Imagem</span>
+                            <Camera className={`w-4 h-4 ${isProcessingPhoto ? 'animate-spin text-amber-600' : 'text-blue-600'}`} />
+                            <span>{isProcessingPhoto ? 'Otimizando foto...' : 'Tirar Foto / Anexar Imagem'}</span>
                           </div>
                           <input
                             type="file"
                             accept="image/*"
                             capture="environment"
                             onChange={handlePhotoCapture}
+                            disabled={isProcessingPhoto}
                             className="hidden"
                           />
                         </label>
                       </div>
 
                       {photoPreview && (
-                        <div className="mt-2 relative rounded-xl overflow-hidden border border-slate-200">
-                          <img src={photoPreview} alt="Foto tirada" className="w-full h-36 object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => setPhotoPreview(null)}
-                            className="absolute top-2 right-2 p-1 bg-black/60 text-white rounded-lg text-xs"
-                          >
-                            Remover
-                          </button>
+                        <div className="mt-2 space-y-2">
+                          <div className="relative rounded-xl overflow-hidden border border-slate-200">
+                            <img src={photoPreview} alt="Foto tirada" className="w-full h-36 object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setPhotoPreview(null)}
+                              className="absolute top-2 right-2 px-2 py-1 bg-black/60 hover:bg-black text-white rounded-lg text-xs font-semibold"
+                            >
+                              Remover
+                            </button>
+                          </div>
+
+                          {isDriveConnected() ? (
+                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
+                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              <span>Esta foto será arquivada no seu Google Drive corporativo.</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between gap-1.5 text-[11px] text-blue-900 bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200">
+                              <span>Salvar no Google Drive na nuvem?</span>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await connectGoogleDrive();
+                                  } catch {}
+                                }}
+                                className="text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer shrink-0"
+                              >
+                                Conectar Drive
+                              </button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
                     <button
                       type="submit"
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isProcessingPhoto}
                       className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition shadow-md flex items-center justify-center gap-2"
                     >
                       <Check className="w-5 h-5" />
-                      <span>{isSubmitting ? 'Gravando Conclusão...' : 'Concluir Tarefa'}</span>
+                      <span>{isSubmitting ? 'Gravando Conclusão...' : isProcessingPhoto ? 'Processando Foto...' : 'Concluir Tarefa'}</span>
                     </button>
                   </form>
                 )}

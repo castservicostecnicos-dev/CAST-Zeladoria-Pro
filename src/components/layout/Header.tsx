@@ -16,14 +16,16 @@ import { useAuth } from '../../contexts/AuthContext';
 import { DataStore } from '../../services/store';
 import { Notification, UserRole } from '../../types';
 import { PWAInstallButton } from '../ui/PWAInstallButton';
+import { GoogleDriveButton } from '../common/GoogleDriveButton';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
   title?: string;
   onReturnToDev?: () => void;
+  onGoBack?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturnToDev }) => {
+export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturnToDev, onGoBack }) => {
   const { user, company, property, role, isDemoMode, switchDemoRole, signOut, navigate } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -88,6 +90,18 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturn
             <Menu className="w-5 h-5" />
           </button>
         )}
+
+        {onGoBack && (
+          <button
+            onClick={onGoBack}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0"
+            title="Voltar à tela anterior"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Voltar</span>
+          </button>
+        )}
+
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <h1 className="text-sm sm:text-lg font-bold text-slate-800 tracking-tight truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-none">
@@ -120,6 +134,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturn
             <span>DEV</span>
           </button>
         )}
+
+        {/* Google Drive Cloud Storage Indicator / Connect */}
+        <GoogleDriveButton compact={true} />
 
         {/* PWA Install Button */}
         <PWAInstallButton />

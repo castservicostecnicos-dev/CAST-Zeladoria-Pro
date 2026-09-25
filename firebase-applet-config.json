@@ -1,12 +1,11 @@
 {
-  "projectId": "dark-forge-wcjpc",
-  "appId": "1:665970472995:web:c735e580267e5f66ca5996",
-  "apiKey": "AIzaSyBcesdLO6fgKml_leAGhsnAh7ATy8Cz2yY",
-  "authDomain": "dark-forge-wcjpc.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-pdftoappconverte-e9514294-04a0-41c2-bbfc-becd16e90187",
-  "storageBucket": "dark-forge-wcjpc.firebasestorage.app",
-  "messagingSenderId": "665970472995",
+  "projectId": "gen-lang-client-0078699210",
+  "appId": "1:215710695059:web:410f3074d03881963d1766",
+  "apiKey": "AIzaSyD0lm4ObQQGIG7NfRj0yI5qYr_ydSItphU",
+  "authDomain": "gen-lang-client-0078699210.firebaseapp.com",
+  "storageBucket": "gen-lang-client-0078699210.firebasestorage.app",
+  "messagingSenderId": "215710695059",
   "measurementId": "",
-  "oAuthClientId": "665970472995-fippbr81p48kqj4ljl6krftbb8kca5qh.apps.googleusercontent.com",
+  "oAuthClientId": "215710695059-cfg0cb86dntmlacsc5j7m7tffgnjofb7.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

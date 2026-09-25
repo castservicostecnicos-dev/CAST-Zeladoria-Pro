@@ -15,7 +15,26 @@ import { ToastContainer } from './components/ui/Toast';
 function AppContent() {
   const { user, role, isLoading, switchDemoRole } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [tabHistory, setTabHistory] = useState<string[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  const handleSelectTab = (newTab: string) => {
+    if (newTab !== activeTab) {
+      setTabHistory(prev => [...prev, activeTab]);
+      setActiveTab(newTab);
+    }
+  };
+
+  const handleGoBack = () => {
+    if (tabHistory.length > 0) {
+      const nextHistory = [...tabHistory];
+      const prevTab = nextHistory.pop()!;
+      setTabHistory(nextHistory);
+      setActiveTab(prevTab);
+    } else {
+      setActiveTab('dashboard');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -74,7 +93,7 @@ function AppContent() {
   // Render role-specific main view
   const renderMainContent = () => {
     if (activeTab === 'perfil') {
-      return <MyProfile />;
+      return <MyProfile onBack={handleGoBack} />;
     }
 
     switch (role) {
@@ -82,23 +101,23 @@ function AppContent() {
         return (
           <DevDashboard 
             activeTab={activeTab} 
-            onSelectTab={(tab) => setActiveTab(tab)} 
+            onSelectTab={handleSelectTab} 
           />
         );
       case 'EMPRESA':
         return (
           <EmpresaDashboard 
             activeSubTab={activeTab} 
-            onSelectSubTab={(tab) => setActiveTab(tab)} 
+            onSelectSubTab={handleSelectTab} 
           />
         );
       case 'ZELADOR':
-        return <ZeladorDashboard />;
+        return <ZeladorDashboard onBack={handleGoBack} />;
       case 'ADM_PREDIAL':
         return (
           <AdmPredialDashboard 
             activeTabProp={activeTab}
-            onSelectTab={(tab) => setActiveTab(tab)}
+            onSelectTab={handleSelectTab}
           />
         );
       default:
@@ -113,7 +132,7 @@ function AppContent() {
       {/* Sidebar Navigation */}
       <Sidebar
         currentTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={handleSelectTab}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
@@ -125,8 +144,9 @@ function AppContent() {
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} 
           onReturnToDev={() => {
             switchDemoRole('DEV');
-            setActiveTab('demonstracao');
+            handleSelectTab('demonstracao');
           }}
+          onGoBack={handleGoBack}
         />
 
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto overflow-x-hidden">

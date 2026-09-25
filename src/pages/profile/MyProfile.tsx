@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { User, Phone, Mail, Shield, Building2, Lock, CheckCircle2, Camera } from 'lucide-react';
+import { User, Phone, Mail, Shield, Building2, Lock, CheckCircle2, Camera, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { GoogleDriveButton } from '../../components/common/GoogleDriveButton';
 
-export const MyProfile: React.FC = () => {
+interface MyProfileProps {
+  onBack?: () => void;
+}
+
+export const MyProfile: React.FC<MyProfileProps> = ({ onBack }) => {
   const { user, company, property, role, updateCurrentUser, requestPasswordReset } = useAuth();
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
@@ -34,6 +39,16 @@ export const MyProfile: React.FC = () => {
 
   return (
     <div className="w-full max-w-full sm:max-w-2xl mx-auto space-y-6 overflow-x-hidden">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold shadow-xs transition cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 text-slate-500" />
+          <span>Voltar ao Painel</span>
+        </button>
+      )}
+
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
         <div className="flex items-center gap-4 pb-6 border-b border-slate-100">
           <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-black text-2xl uppercase shadow-md shadow-blue-500/20">
@@ -131,6 +146,11 @@ export const MyProfile: React.FC = () => {
                 className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 uppercase"
               />
             </div>
+          </div>
+
+          {/* Google Drive Integration for Photos and PDFs */}
+          <div>
+            <GoogleDriveButton />
           </div>
 
           {/* Security lock info (Section 37) */}

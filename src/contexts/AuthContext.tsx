@@ -3,6 +3,7 @@ import { Profile, Company, UserRole, Property } from '../types';
 import { DataStore } from '../services/store';
 import { initialProfiles } from '../services/mockData';
 import { auth, db, isFirebaseConfigured } from '../lib/firebase';
+import { safeGetLocal, safeSetLocal } from '../lib/storageManager';
 import { 
   signInWithEmailAndPassword, 
   signOut as firebaseSignOut,
@@ -60,12 +61,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Garantir dados no Firestore caso esteja vazio
         await DataStore.seedFirestoreIfEmpty();
 
-        const savedUserJson = localStorage.getItem(AUTH_STORAGE_KEY);
-        const demoStored = localStorage.getItem(DEMO_MODE_KEY);
+        const savedUserJson = safeGetLocal<Profile | null>(AUTH_STORAGE_KEY, null);
+        const demoStored = safeGetLocal<string>(DEMO_MODE_KEY, 'true');
         setIsDemoMode(demoStored !== 'false');
 
         if (savedUserJson) {
-          const parsedUser = JSON.parse(savedUserJson) as Profile;
+          const parsedUser = savedUserJson;
           setUser(parsedUser);
           await loadRelations(parsedUser);
           
@@ -148,9 +149,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             setUser(profileData);
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(profileData));
+            safeSetLocal(AUTH_STORAGE_KEY, profileData);
             setIsDemoMode(false);
-            localStorage.setItem(DEMO_MODE_KEY, 'false');
+            safeSetLocal(DEMO_MODE_KEY, 'false');
             await loadRelations(profileData);
             routeUser(profileData.role);
             setIsLoading(false);
@@ -176,6 +177,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Seu acesso está desativado. Entre em contato com o administrador.' };
     }
 
+    // Validação de senha direta (sem necessidade de link de e-mail)
+    if (password) {
+      const expectedPassword = matched.password || '123456';
+      if (password !== expectedPassword) {
+        setIsLoading(false);
+        return { 
+          success: false, 
+          message: 'Senha incorreta. Verifique a senha digitada ou solicite a redefinição direta ao Administrador DEV.' 
+        };
+      }
+    }
+
     // Verifica status da empresa se não for DEV
     if (matched.role !== 'DEV' && matched.company_id) {
       const companies = await DataStore.getCompanies();
@@ -187,7 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUser(matched);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(matched));
+    safeSetLocal(AUTH_STORAGE_KEY, matched);
     await loadRelations(matched);
     await DataStore.logAction(matched, 'login', 'auth', matched.id);
     routeUser(matched.role);
@@ -209,19 +222,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setCompany(null);
     setProperty(null);
-    localStorage.removeItem(AUTH_STORAGE_KEY);
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {}
     navigate('/login');
   };
 
   const switchDemoRole = async (targetRole: UserRole) => {
     setIsLoading(true);
     setIsDemoMode(true);
-    localStorage.setItem(DEMO_MODE_KEY, 'true');
+    safeSetLocal(DEMO_MODE_KEY, 'true');
 
     const profiles = await DataStore.getProfiles();
     const target = profiles.find(p => p.role === targetRole) || initialProfiles.find(p => p.role === targetRole)!;
     setUser(target);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(target));
+    safeSetLocal(AUTH_STORAGE_KEY, target);
     await loadRelations(target);
     await DataStore.logAction(target, `mudança de perfil em demonstração (${targetRole})`, 'auth', target.id);
     routeUser(targetRole);
@@ -254,7 +269,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const updated = await DataStore.updateProfile(user.id, safeUpdates, user);
     setUser(updated);
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(updated));
+    safeSetLocal(AUTH_STORAGE_KEY, updated);
   };
 
   return (

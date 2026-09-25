@@ -12,10 +12,14 @@ import {
   Filter,
   Camera,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  CloudUpload,
+  ExternalLink,
+  Loader2
 } from 'lucide-react';
 import { Task, Company, Property, Profile } from '../../types';
-import { downloadDailyReportPDF } from '../../services/pdfReportGenerator';
+import { downloadDailyReportPDF, generateDailyReportPDF } from '../../services/pdfReportGenerator';
+import { isDriveConnected, connectGoogleDrive, uploadPdfToDrive } from '../../services/googleDriveService';
 
 interface DailyReportManagerProps {
   tasks: Task[];
@@ -45,6 +49,8 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
   const [dailyNotes, setDailyNotes] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'ALL' | 'DONE' | 'NOT_DONE'>('ALL');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
+  const [driveUploadResult, setDriveUploadResult] = useState<{ name: string; webViewLink: string } | null>(null);
 
   // Quick Date Selectors
   const setQuickDate = (offsetDays: number) => {
@@ -102,6 +108,43 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
     }
   };
 
+  // Handle PDF Generation & Direct Upload to Google Drive (Section: Cloud Storage outside local)
+  const handleSaveToGoogleDrive = async () => {
+    setIsSavingToDrive(true);
+    setDriveUploadResult(null);
+    try {
+      if (!isDriveConnected()) {
+        await connectGoogleDrive();
+      }
+
+      const doc = generateDailyReportPDF({
+        date: selectedDate,
+        company: company || null,
+        property: currentTargetProperty,
+        tasksDone,
+        tasksNotDone,
+        zeladores,
+        generatedByName: currentUserName,
+        notes: dailyNotes.trim() || undefined,
+      });
+
+      const pdfBlob = doc.output('blob');
+      const sanitizedDate = selectedDate.replace(/-/g, '');
+      const condName = (currentTargetProperty?.name || 'condominio').toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const filename = `relatorio_diario_${condName}_${sanitizedDate}.pdf`;
+
+      const uploadRes = await uploadPdfToDrive(pdfBlob, filename);
+      setDriveUploadResult(uploadRes);
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        console.error('Erro ao enviar relatório para o Google Drive:', err);
+        alert('Erro ao salvar no Google Drive: ' + (err?.message || 'Verifique as permissões.'));
+      }
+    } finally {
+      setIsSavingToDrive(false);
+    }
+  };
+
   // Handle Native Print
   const handlePrint = () => {
     window.print();
@@ -138,8 +181,27 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
         {/* Quick Action PDF Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <button
+            onClick={handleSaveToGoogleDrive}
+            disabled={isSavingToDrive || isGenerating}
+            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-md shadow-blue-700/30 transition cursor-pointer disabled:opacity-50"
+            title="Salvar o arquivo PDF diretamente no Google Drive fora do ambiente local"
+          >
+            {isSavingToDrive ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Salvando no Drive...</span>
+              </>
+            ) : (
+              <>
+                <CloudUpload className="w-4 h-4" />
+                <span>Salvar no Google Drive</span>
+              </>
+            )}
+          </button>
+
+          <button
             onClick={handleDownloadPDF}
-            disabled={isGenerating}
+            disabled={isGenerating || isSavingToDrive}
             className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-md shadow-emerald-700/30 transition cursor-pointer disabled:opacity-50"
             title="Baixar arquivo PDF formatado para impressão ou envio por e-mail/WhatsApp"
           >
@@ -157,6 +219,27 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Google Drive Upload Success Alert */}
+      {driveUploadResult && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 print:hidden animate-fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Relatório <strong>{driveUploadResult.name}</strong> salvo com sucesso na sua pasta do <strong>Google Drive</strong>!
+            </span>
+          </div>
+          <a
+            href={driveUploadResult.webViewLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition self-start sm:self-auto"
+          >
+            <span>Ver no Google Drive</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        </div>
+      )}
 
       {/* Date & Filter Control Bar */}
       <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-xs space-y-4 print:hidden">

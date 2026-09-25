@@ -22,6 +22,8 @@ import {
   initialNotifications
 } from './mockData';
 import { db, isFirebaseConfigured } from '../lib/firebase';
+import { safeGetLocal, safeSetLocal } from '../lib/storageManager';
+import { compressImage } from '../lib/imageCompression';
 import { 
   collection, 
   doc, 
@@ -50,24 +52,11 @@ const KEYS = {
 };
 
 function getLocal<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      localStorage.setItem(key, JSON.stringify(fallback));
-      return fallback;
-    }
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  return safeGetLocal<T>(key, fallback);
 }
 
 function setLocal<T>(key: string, data: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (err) {
-    console.error(`Erro ao salvar no cache local (${key}):`, err);
-  }
+  safeSetLocal<T>(key, data);
 }
 
 export class DataStore {
@@ -434,6 +423,40 @@ export class DataStore {
     return updatedList.find(p => p.id === id)!;
   }
 
+  static async resetUserPassword(profileId: string, newPassword: string, actor: Profile): Promise<void> {
+    if (!newPassword || newPassword.trim().length < 4) {
+      throw new Error('A nova senha deve possuir ao menos 4 caracteres.');
+    }
+    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles);
+    const target = list.find(p => p.id === profileId);
+    if (!target) throw new Error('Usuário não encontrado.');
+
+    const updatedList = list.map(p => p.id === profileId ? {
+      ...p,
+      password: newPassword,
+      updated_at: new Date().toISOString()
+    } : p);
+    setLocal(KEYS.PROFILES, updatedList);
+
+    if (isFirebaseConfigured) {
+      try {
+        await updateDoc(doc(db, 'profiles', profileId), {
+          password: newPassword,
+          updated_at: new Date().toISOString()
+        });
+      } catch (err) {
+        console.warn('Erro ao atualizar senha no Firestore:', err);
+      }
+    }
+
+    await DataStore.logAction(
+      actor, 
+      `redefinição direta de senha para "${target.name}" (${target.email}) sem envio de link`, 
+      'profile', 
+      profileId
+    );
+  }
+
   static async deleteProfile(id: string, actor: Profile): Promise<void> {
     // Soft delete
     const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles);
@@ -592,7 +615,21 @@ export class DataStore {
     const existing = list.find(t => t.id === id);
     if (!existing) throw new Error('Tarefa não encontrada.');
 
-    const newPhotos = photoUrls.map((url, i) => ({
+    // Assegura compressão de quaisquer fotos em data URL antes de persistir
+    const processedPhotos = await Promise.all(
+      photoUrls.map(async (url) => {
+        if (typeof url === 'string' && url.startsWith('data:image') && url.length > 40000) {
+          try {
+            return await compressImage(url, 1024, 1024, 0.72);
+          } catch {
+            return url;
+          }
+        }
+        return url;
+      })
+    );
+
+    const newPhotos = processedPhotos.map((url, i) => ({
       id: `photo-${Date.now()}-${i}`,
       task_id: id,
       storage_path: url,
