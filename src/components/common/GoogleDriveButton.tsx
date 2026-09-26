@@ -50,13 +50,14 @@ export const GoogleDriveButton: React.FC<GoogleDriveButtonProps> = ({ compact = 
   if (compact) {
     if (connected) {
       return (
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold">
-          <HardDrive className="w-3.5 h-3.5 text-emerald-600" />
-          <span className="hidden sm:inline">Drive Ativo</span>
+        <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold shrink-0">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <HardDrive className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="hidden sm:inline text-[11px] font-bold">Drive Ativo</span>
           <button
             onClick={handleDisconnect}
             title="Desconectar Google Drive"
-            className="text-slate-400 hover:text-red-500 ml-1 cursor-pointer"
+            className="text-slate-400 hover:text-red-500 ml-0.5 cursor-pointer"
           >
             ×
           </button>
@@ -69,12 +70,12 @@ export const GoogleDriveButton: React.FC<GoogleDriveButtonProps> = ({ compact = 
         onClick={handleConnect}
         disabled={loading}
         title="Conectar ao Google Drive para salvar fotos e relatórios na nuvem"
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-bold shadow-2xs transition cursor-pointer disabled:opacity-50"
+        className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer disabled:opacity-50 shrink-0"
       >
         {loading ? (
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600 shrink-0" />
         ) : (
-          <svg className="w-3.5 h-3.5" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+          <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
             <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
             <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
             <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
@@ -83,7 +84,7 @@ export const GoogleDriveButton: React.FC<GoogleDriveButtonProps> = ({ compact = 
             <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
           </svg>
         )}
-        <span>{loading ? 'Conectando...' : 'Drive'}</span>
+        <span className="hidden sm:inline text-[11px] font-bold">{loading ? 'Conectando...' : 'Drive'}</span>
       </button>
     );
   }

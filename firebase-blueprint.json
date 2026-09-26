@@ -16,6 +16,12 @@
         "responsible_email": { "type": "string", "description": "E-mail do responsável" },
         "responsible_phone": { "type": "string", "description": "Telefone do responsável" },
         "status": { "type": "string", "description": "Status da empresa (Ativa ou Inativa)" },
+        "google_drive_folder_id": { "type": "string", "description": "ID da pasta corporativa no Google Drive" },
+        "google_drive_folder_url": { "type": "string", "description": "URL da pasta corporativa no Google Drive" },
+        "google_drive_folder_name": { "type": "string", "description": "Nome da pasta corporativa no Google Drive" },
+        "google_drive_email": { "type": "string", "description": "E-mail da conta do Google Drive da empresa" },
+        "google_drive_connected": { "type": "boolean", "description": "Status da conexão do Google Drive" },
+        "google_drive_connected_at": { "type": "string", "description": "Data ISO da conexão do Google Drive" },
         "created_at": { "type": "string", "description": "Data ISO de criação" },
         "updated_at": { "type": "string", "description": "Data ISO de atualização" },
         "deleted_at": { "type": "string", "description": "Data ISO de soft delete" }
@@ -50,6 +56,7 @@
         "photo_url": { "type": "string", "description": "Foto do perfil" },
         "status": { "type": "string", "description": "Ativo ou Inativo" },
         "notes": { "type": "string", "description": "Anotações e observações" },
+        "password": { "type": "string", "description": "Senha de acesso do usuário" },
         "created_at": { "type": "string", "description": "Data ISO de criação" },
         "updated_at": { "type": "string", "description": "Data ISO de atualização" },
         "deleted_at": { "type": "string", "description": "Soft delete timestamp" }

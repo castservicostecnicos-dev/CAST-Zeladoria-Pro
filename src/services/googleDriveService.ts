@@ -239,7 +239,8 @@ export async function uploadBase64ImageToDrive(
  */
 export async function uploadPdfToDrive(
   pdfBlob: Blob,
-  fileName: string
+  fileName: string,
+  folderName: string = `${DRIVE_FOLDER_NAME}/Relatórios Diários`
 ): Promise<DriveUploadResult> {
-  return uploadFileToDrive(pdfBlob, fileName, 'application/pdf', `${DRIVE_FOLDER_NAME}/Relatórios Diários`);
+  return uploadFileToDrive(pdfBlob, fileName, 'application/pdf', folderName);
 }

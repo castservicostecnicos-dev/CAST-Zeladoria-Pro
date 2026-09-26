@@ -13,12 +13,15 @@ import { OfflineIndicator } from './components/ui/PWAInstallButton';
 import { ToastContainer } from './components/ui/Toast';
 
 function AppContent() {
-  const { user, role, isLoading, switchDemoRole } = useAuth();
+  const { user, role, isLoading, switchDemoRole, isDevMaster } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [tabHistory, setTabHistory] = useState<string[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   const handleSelectTab = (newTab: string) => {
+    if (newTab === 'demonstracao' && !isDevMaster) {
+      return;
+    }
     if (newTab !== activeTab) {
       setTabHistory(prev => [...prev, activeTab]);
       setActiveTab(newTab);
@@ -76,6 +79,8 @@ function AppContent() {
           ? 'Administradores Prediais'
           : activeTab === 'relatorios'
           ? 'Relatórios de Gestão'
+          : activeTab === 'google_drive'
+          ? 'Google Drive Corporativo'
           : 'Painel da Empresa';
       case 'ZELADOR':
         return 'Minhas Tarefas';
@@ -143,8 +148,10 @@ function AppContent() {
           title={getPageTitle()}
           onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} 
           onReturnToDev={() => {
-            switchDemoRole('DEV');
-            handleSelectTab('demonstracao');
+            if (isDevMaster) {
+              switchDemoRole('DEV');
+              handleSelectTab('demonstracao');
+            }
           }}
           onGoBack={handleGoBack}
         />

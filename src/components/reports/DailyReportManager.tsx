@@ -138,7 +138,8 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
       const condName = (currentTargetProperty?.name || 'condominio').toLowerCase().replace(/[^a-z0-9]/g, '_');
       const filename = `relatorio_diario_${condName}_${sanitizedDate}.pdf`;
 
-      const uploadRes = await uploadPdfToDrive(pdfBlob, filename);
+      const folderName = company?.google_drive_folder_name || (company?.trade_name ? `${company.trade_name} - Relatórios` : undefined);
+      const uploadRes = await uploadPdfToDrive(pdfBlob, filename, folderName);
       setDriveUploadResult(uploadRes);
     } catch (err: any) {
       if (
@@ -189,24 +190,26 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
 
         {/* Quick Action PDF Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <button
-            onClick={handleSaveToGoogleDrive}
-            disabled={isSavingToDrive || isGenerating}
-            className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-md shadow-blue-700/30 transition cursor-pointer disabled:opacity-50"
-            title="Salvar o arquivo PDF diretamente no Google Drive fora do ambiente local"
-          >
-            {isSavingToDrive ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Salvando no Drive...</span>
-              </>
-            ) : (
-              <>
-                <CloudUpload className="w-4 h-4" />
-                <span>Salvar no Google Drive</span>
-              </>
-            )}
-          </button>
+          {!isAdmPredial && (
+            <button
+              onClick={handleSaveToGoogleDrive}
+              disabled={isSavingToDrive || isGenerating}
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold shadow-md shadow-blue-700/30 transition cursor-pointer disabled:opacity-50"
+              title="Salvar o arquivo PDF diretamente no Google Drive da empresa"
+            >
+              {isSavingToDrive ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Salvando no Drive...</span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="w-4 h-4" />
+                  <span>Salvar no Google Drive</span>
+                </>
+              )}
+            </button>
+          )}
 
           <button
             onClick={handleDownloadPDF}
@@ -230,7 +233,7 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
       </div>
 
       {/* Google Drive Upload Success Alert */}
-      {driveUploadResult && (
+      {!isAdmPredial && driveUploadResult && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 print:hidden animate-fade-in">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />

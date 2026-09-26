@@ -16,7 +16,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { DataStore } from '../../services/store';
 import { Notification, UserRole } from '../../types';
 import { PWAInstallButton } from '../ui/PWAInstallButton';
-import { GoogleDriveButton } from '../common/GoogleDriveButton';
 
 interface HeaderProps {
   onToggleSidebar?: () => void;
@@ -26,7 +25,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturnToDev, onGoBack }) => {
-  const { user, company, property, role, isDemoMode, switchDemoRole, signOut, navigate } = useAuth();
+  const { user, company, property, role, isDemoMode, isDevMaster, switchDemoRole, signOut, navigate } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [showDemoDropdown, setShowDemoDropdown] = useState(false);
@@ -80,11 +79,11 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturn
   return (
     <header className="h-16 bg-white border-b border-slate-200 sticky top-0 z-30 flex items-center justify-between px-3 sm:px-6 shadow-xs w-full max-w-full overflow-hidden">
       {/* Left side */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+      <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition cursor-pointer shrink-0"
+            className="md:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer shrink-0"
             aria-label="Abrir menu"
           >
             <Menu className="w-5 h-5" />
@@ -94,23 +93,31 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturn
         {onGoBack && (
           <button
             onClick={onGoBack}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0"
             title="Voltar à tela anterior"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span className="hidden xs:inline">Voltar</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Voltar</span>
           </button>
         )}
 
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
-            <h1 className="text-sm sm:text-lg font-bold text-slate-800 tracking-tight truncate max-w-[130px] xs:max-w-[180px] sm:max-w-xs md:max-w-none">
+            <h1 className="text-sm sm:text-base md:text-lg font-bold text-slate-800 tracking-tight truncate max-w-[120px] xs:max-w-[170px] sm:max-w-xs md:max-w-none">
               {title || 'Painel de Zeladoria'}
             </h1>
-            {getRoleBadge(role)}
+            <div className="hidden xs:block shrink-0">
+              {getRoleBadge(role)}
+            </div>
+            {isDevMaster && role !== 'DEV' && (
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                <Sparkles className="w-2.5 h-2.5 text-purple-600" />
+                Simulação DEV
+              </span>
+            )}
           </div>
           {(company || property) && (
-            <p className="text-[11px] sm:text-xs text-slate-500 flex items-center gap-1 truncate max-w-[140px] xs:max-w-[180px] sm:max-w-xs md:max-w-none">
+            <p className="text-[11px] text-slate-500 hidden sm:flex items-center gap-1 truncate max-w-[180px] sm:max-w-xs md:max-w-none">
               <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
               <span className="truncate">{company?.trade_name || company?.legal_name}</span>
               {property && <span className="text-slate-400 shrink-0">• {property.name}</span>}
@@ -120,72 +127,69 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, title, onReturn
       </div>
 
       {/* Right side */}
-      <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-        {/* Prominent Return to DEV button when viewing other profiles */}
-        {role !== 'DEV' && (
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        {/* Prominent Return to DEV button - EXCLUSIVO para usuário original DEV visualizando outro papel */}
+        {isDevMaster && role !== 'DEV' && (
           <button
             onClick={handleReturnToDev}
-            className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-sm hover:shadow transition cursor-pointer animate-pulse-subtle shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-xs transition cursor-pointer shrink-0 animate-fade-in"
             title="Retornar ao painel de Administrador DEV"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <Shield className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Voltar ao</span>
-            <span>DEV</span>
+            <span>Voltar ao DEV</span>
           </button>
         )}
-
-        {/* Google Drive Cloud Storage Indicator / Connect */}
-        <GoogleDriveButton compact={true} />
 
         {/* PWA Install Button */}
         <PWAInstallButton />
 
-        {/* Role Switcher (Demonstration) */}
-        <div className="relative">
-          <button
-            onClick={() => setShowDemoDropdown(!showDemoDropdown)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-            title="Alternar Perfil em Demonstração"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span className="hidden md:inline text-slate-500">Perfil:</span>
-            <span className="font-bold text-slate-900">{role}</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
+        {/* Role Switcher (Demonstration) - EXCLUSIVO para quem tem acesso DEV */}
+        {isDevMaster && (
+          <div className="relative">
+            <button
+              onClick={() => setShowDemoDropdown(!showDemoDropdown)}
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100/80 border border-purple-200 text-purple-900 text-xs font-semibold transition cursor-pointer"
+              title="Alternar Perfil em Demonstração (Acesso DEV)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+              <span className="font-bold text-purple-900 hidden sm:inline">Demo: {role}</span>
+              <ChevronDown className="w-3 h-3 text-purple-400 shrink-0" />
+            </button>
 
-          {showDemoDropdown && (
-            <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 animate-fade-in">
-              <div className="px-3 py-1.5 border-b border-slate-100 text-xs font-semibold text-slate-500 flex items-center justify-between">
-                <span>Perfis de Demonstração</span>
-                <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-semibold">4 Papéis</span>
+            {showDemoDropdown && (
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 animate-fade-in">
+                <div className="px-3 py-1.5 border-b border-purple-100 text-xs font-semibold text-purple-900 flex items-center justify-between bg-purple-50/60">
+                  <span>Demonstração de Perfis (DEV)</span>
+                  <span className="text-[10px] text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded font-bold">4 Papéis</span>
+                </div>
+                {(['DEV', 'EMPRESA', 'ZELADOR', 'ADM_PREDIAL'] as UserRole[]).map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => {
+                      switchDemoRole(r);
+                      setShowDemoDropdown(false);
+                    }}
+                    className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-purple-50/60 transition cursor-pointer ${
+                      role === r ? 'font-bold text-purple-700 bg-purple-50' : 'text-slate-700'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="flex items-center gap-1.5">
+                        {r === 'DEV' ? <Shield className="w-3 h-3 text-purple-600" /> : null}
+                        {r === 'DEV' ? 'Administrador Global (DEV)' : r === 'EMPRESA' ? 'Gestão da Empresa' : r === 'ZELADOR' ? 'Zelador em Campo' : 'Síndico / ADM Predial'}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {r === 'DEV' ? 'cast.servicostecnicos@gmail.com' : r === 'EMPRESA' ? 'empresa@cast.com' : r === 'ZELADOR' ? 'zelador@cast.com' : 'adm@cast.com'}
+                      </span>
+                    </div>
+                    {role === r && <Check className="w-4 h-4 text-purple-600" />}
+                  </button>
+                ))}
               </div>
-              {(['DEV', 'EMPRESA', 'ZELADOR', 'ADM_PREDIAL'] as UserRole[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => {
-                    switchDemoRole(r);
-                    setShowDemoDropdown(false);
-                  }}
-                  className={`w-full px-3 py-2 text-left text-xs flex items-center justify-between hover:bg-slate-50 transition cursor-pointer ${
-                    role === r ? 'font-bold text-blue-600 bg-blue-50/50' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex flex-col">
-                    <span className="flex items-center gap-1.5">
-                      {r === 'DEV' ? <Shield className="w-3 h-3 text-purple-600" /> : null}
-                      {r === 'DEV' ? 'Administrador Global (DEV)' : r === 'EMPRESA' ? 'Gestão da Empresa' : r === 'ZELADOR' ? 'Zelador em Campo' : 'Síndico / ADM Predial'}
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {r === 'DEV' ? 'dev@demo.com' : r === 'EMPRESA' ? 'empresa@demo.com' : r === 'ZELADOR' ? 'zelador@demo.com' : 'adm@demo.com'}
-                    </span>
-                  </div>
-                  {role === r && <Check className="w-4 h-4 text-blue-600" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Notification Bell with counter */}
         <div className="relative">

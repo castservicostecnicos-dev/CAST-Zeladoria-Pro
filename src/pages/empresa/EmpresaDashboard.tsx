@@ -22,7 +22,15 @@ import {
   TrendingUp,
   Sparkles,
   UserPlus,
-  FileText
+  FileText,
+  HardDrive,
+  ExternalLink,
+  Folder,
+  Link as LinkIcon,
+  CloudUpload,
+  LogOut,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { 
   Task, 
@@ -40,6 +48,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { DailyReportManager } from '../../components/reports/DailyReportManager';
+import { 
+  connectGoogleDrive, 
+  disconnectGoogleDrive, 
+  isDriveConnected 
+} from '../../services/googleDriveService';
 
 interface EmpresaDashboardProps {
   activeSubTab?: string;
@@ -385,24 +398,19 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   };
 
   const renderDashboardView = () => (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Daily PDF Report Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-3xl p-5 shadow-xs border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600/40 border border-blue-400/30 flex items-center justify-center shrink-0">
-            <FileText className="w-5 h-5 text-blue-300" />
+      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center shrink-0">
+            <FileText className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm sm:text-base font-black tracking-tight text-white">
-                Relatórios Diários Oficiais em PDF
-              </h3>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                PDF Instantâneo
-              </span>
-            </div>
+            <h3 className="text-sm sm:text-base font-bold text-white">
+              Relatórios Diários em PDF
+            </h3>
             <p className="text-xs text-slate-300 mt-0.5">
-              Emita o demonstrativo com separação clara de <span className="text-emerald-300 font-semibold">tudo o que foi feito</span> e <span className="text-rose-300 font-semibold">o que não foi feito</span>.
+              Emita o demonstrativo com separação clara do que foi executado e pendências.
             </p>
           </div>
         </div>
@@ -411,10 +419,10 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           onClick={() => {
             if (onSelectSubTab) onSelectSubTab('relatorios');
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-sm shrink-0 cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-xs shrink-0 cursor-pointer self-start sm:self-auto"
         >
           <FileText className="w-4 h-4" />
-          <span>Acessar Relatórios Diários</span>
+          <span>Acessar Relatórios</span>
         </button>
       </div>
 
@@ -674,8 +682,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         </div>
 
         {/* Table Rows (Section 21) */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full min-w-[750px] text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3">Tarefa</th>
@@ -845,8 +853,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto w-full max-w-full">
+          <table className="w-full min-w-[700px] text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3">Solicitação</th>
@@ -920,8 +928,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     const title = roleType === 'ZELADOR' ? 'Equipe de Zeladores' : 'Administradores Prediais (Síndicos)';
 
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+      <div className="space-y-5 w-full max-w-full overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
           <div>
             <h3 className="text-base font-bold text-slate-800">{title}</h3>
             <p className="text-xs text-slate-500">
@@ -930,7 +938,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           </div>
           <button
             onClick={() => handleOpenCreateUser(roleType)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs self-start sm:self-auto shrink-0 cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>Cadastrar {roleType === 'ZELADOR' ? 'Zelador' : 'ADM'}</span>
@@ -938,7 +946,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full max-w-full">
+            <table className="w-full min-w-[650px] text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3">Nome</th>
@@ -1006,8 +1015,9 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           </table>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const renderReportsView = () => (
     <div className="space-y-6">

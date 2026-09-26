@@ -36,6 +36,12 @@ export interface Company {
   responsible_email: string;
   responsible_phone: string;
   status: CompanyStatus;
+  google_drive_folder_id?: string | null;
+  google_drive_folder_url?: string | null;
+  google_drive_folder_name?: string | null;
+  google_drive_email?: string | null;
+  google_drive_connected?: boolean;
+  google_drive_connected_at?: string | null;
   created_at: string;
   updated_at: string;
   deleted_at?: string | null;

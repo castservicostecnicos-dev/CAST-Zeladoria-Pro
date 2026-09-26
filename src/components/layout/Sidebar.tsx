@@ -12,7 +12,8 @@ import {
   User, 
   LogOut,
   Sparkles,
-  ShieldAlert
+  ShieldAlert,
+  HardDrive
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types';
@@ -30,7 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpenMobile, 
   onCloseMobile 
 }) => {
-  const { role, signOut, isDemoMode, switchDemoRole } = useAuth();
+  const { role, signOut, isDemoMode, isDevMaster, switchDemoRole } = useAuth();
 
   const getMenuItems = (userRole: UserRole | null) => {
     switch (userRole) {
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'zeladores', label: 'Zeladores', icon: Users },
           { id: 'adm_predial', label: 'ADM Predial', icon: UserCheck },
           { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+          { id: 'google_drive', label: 'Google Drive', icon: HardDrive },
           { id: 'perfil', label: 'Meu Perfil', icon: User },
         ];
       case 'ZELADOR':
@@ -133,24 +135,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Bottom actions & Session info */}
         <div className="p-4 border-t border-slate-800 space-y-3">
-          {/* Quick Return to DEV button in Sidebar when user is in another role */}
-          {role !== 'DEV' && (
+          {/* Quick Return to DEV button in Sidebar - SOMENTE quando o usuário autenticado original é DEV */}
+          {isDevMaster && role !== 'DEV' && (
             <button
               onClick={() => {
                 switchDemoRole('DEV');
                 if (onCloseMobile) onCloseMobile();
               }}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-md transition cursor-pointer animate-fade-in"
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
               <span>Voltar ao Acesso DEV</span>
             </button>
           )}
 
-          {isDemoMode && (
-            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] leading-tight flex items-start gap-2">
+          {isDemoMode && isDevMaster && (
+            <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[11px] leading-tight flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <span>Você está navegando no ambiente de demonstração com dados de teste.</span>
+              <span>Modo Demonstração (DEV ativo). Alterne perfis ou retorne ao DEV.</span>
             </div>
           )}
 

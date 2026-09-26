@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { User, Phone, Mail, Shield, Building2, Lock, CheckCircle2, Camera, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { GoogleDriveButton } from '../../components/common/GoogleDriveButton';
 
 interface MyProfileProps {
   onBack?: () => void;
@@ -146,11 +145,6 @@ export const MyProfile: React.FC<MyProfileProps> = ({ onBack }) => {
                 className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 uppercase"
               />
             </div>
-          </div>
-
-          {/* Google Drive Integration for Photos and PDFs */}
-          <div>
-            <GoogleDriveButton />
           </div>
 
           {/* Security lock info (Section 37) */}

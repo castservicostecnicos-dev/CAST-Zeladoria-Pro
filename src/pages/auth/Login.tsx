@@ -6,20 +6,15 @@ import {
   Sparkles, 
   ArrowRight, 
   CheckCircle2, 
-  AlertCircle,
-  Shield,
-  Layers,
-  Wrench,
-  KeyRound
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { UserRole } from '../../types';
 import { Modal } from '../../components/ui/Modal';
 
 export const Login: React.FC = () => {
-  const { signIn, switchDemoRole, requestPasswordReset } = useAuth();
-  const [email, setEmail] = useState('empresa@demo.com');
-  const [password, setPassword] = useState('123456');
+  const { signIn, requestPasswordReset } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -156,42 +151,6 @@ export const Login: React.FC = () => {
                 )}
               </button>
             </form>
-
-            <div className="mt-6 pt-5 border-t border-slate-800/80 space-y-3">
-              <div className="p-3.5 rounded-xl bg-purple-950/40 border border-purple-800/50 text-left">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-bold text-purple-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-purple-400" />
-                    Credenciais de Acesso DEV
-                  </span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-900/80 text-purple-200 border border-purple-700/60 font-mono">
-                    Admin Master
-                  </span>
-                </div>
-                <div className="text-xs text-slate-300 font-mono space-y-1 bg-slate-950/70 p-2.5 rounded-lg border border-slate-800">
-                  <p className="flex justify-between">
-                    <span className="text-slate-500 font-sans">E-mail:</span>
-                    <strong className="text-purple-300 select-all">dev@demo.com</strong>
-                  </p>
-                  <p className="flex justify-between">
-                    <span className="text-slate-500 font-sans">Senha:</span>
-                    <strong className="text-purple-300 select-all">123456</strong>
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('dev@demo.com');
-                  setPassword('123456');
-                }}
-                className="w-full py-2 px-3 rounded-xl border border-purple-500/40 bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 hover:text-purple-200 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-              >
-                <Shield className="w-3.5 h-3.5 text-purple-400" />
-                <span>Preencher Automaticamente Acesso DEV</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

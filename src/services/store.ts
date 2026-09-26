@@ -42,7 +42,7 @@ import {
 const KEYS = {
   COMPANIES: 'zeladoria_companies_v1',
   PROPERTIES: 'zeladoria_properties_v1',
-  PROFILES: 'zeladoria_profiles_v1',
+  PROFILES: 'zeladoria_profiles_v2',
   TASKS: 'zeladoria_tasks_v1',
   ROUTINES: 'zeladoria_routines_v1',
   REQUESTS: 'zeladoria_requests_v1',
@@ -64,6 +64,8 @@ function setLocal<T>(key: string, data: T): void {
  */
 export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3000): Promise<T> {
   let timer: any;
+  // Previne unhandled rejection em background se o timeout estourar primeiro
+  promise.catch(() => {});
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`Timeout de ${timeoutMs}ms ao conectar ao Firestore`)), timeoutMs);
   });
@@ -74,6 +76,70 @@ export class DataStore {
   private static isInitialized = false;
 
   /**
+   * Limpa usuários de teste legados (@demo.com) e sincroniza
+   * o Administrador (cast.servicostecnicos@gmail.com) e usuários de teste (@cast.com).
+   */
+  static async cleanLegacyTestUsersAndSync(): Promise<void> {
+    try {
+      // 1. Limpeza no cache local (LocalStorage)
+      const cachedProfiles = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles);
+      const cleanedLocal = cachedProfiles.filter(p => 
+        !p.email.toLowerCase().includes('@demo.com') && 
+        p.id !== 'user-zelador-02'
+      );
+
+      // Garante presença dos perfis atualizados da CAST
+      initialProfiles.forEach(ip => {
+        const idx = cleanedLocal.findIndex(p => p.email.toLowerCase().trim() === ip.email.toLowerCase().trim());
+        if (idx >= 0) {
+          cleanedLocal[idx] = { ...cleanedLocal[idx], ...ip };
+        } else {
+          cleanedLocal.push(ip);
+        }
+      });
+      setLocal(KEYS.PROFILES, cleanedLocal);
+
+      // 2. Limpeza e sincronização no Firestore (se configurado)
+      if (isFirebaseConfigured) {
+        try {
+          const snap = await withTimeout(getDocs(collection(db, 'profiles')), 4000);
+          if (!snap.empty) {
+            for (const docSnap of snap.docs) {
+              const data = docSnap.data() as Profile;
+              if (data.email?.toLowerCase().includes('@demo.com') || docSnap.id === 'user-zelador-02') {
+                try {
+                  await deleteDoc(doc(db, 'profiles', docSnap.id));
+                  console.log(`Usuário de teste antigo removido: ${data.email}`);
+                } catch (delErr) {
+                  console.warn('Erro ao remover usuário legado do Firestore:', delErr);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Erro verificando perfis no Firestore:', err);
+        }
+
+        // Salvar/atualizar os perfis da CAST no Firestore
+        for (const prof of initialProfiles) {
+          try {
+            await setDoc(doc(db, 'profiles', prof.id), prof, { merge: true });
+          } catch (setErr) {
+            console.warn(`Erro sincronizando perfil ${prof.email} no Firestore:`, setErr);
+          }
+        }
+
+        // Atualizar dados da empresa principal da CAST
+        try {
+          await setDoc(doc(db, 'companies', initialCompanies[0].id), initialCompanies[0], { merge: true });
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Aviso durante limpeza e sincronização de usuários:', err);
+    }
+  }
+
+  /**
    * Garante que o banco de dados Firestore contenha os dados iniciais
    * independentemente de código ou recarregamentos.
    */
@@ -82,6 +148,9 @@ export class DataStore {
     this.isInitialized = true;
 
     try {
+      // Sempre executa a limpeza e garantia dos perfis da CAST
+      await this.cleanLegacyTestUsersAndSync();
+
       const companiesSnap = await withTimeout(getDocs(collection(db, 'companies')), 3000);
       if (!companiesSnap.empty) {
         // Já possui dados no Firestore
@@ -377,7 +446,7 @@ export class DataStore {
 
   // ---- PROFILES / USERS (EMPRESA & DEV) ----
   static getProfilesLocal(companyId?: string, roleFilter?: UserRole): Profile[] {
-    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles).filter(p => !p.deleted_at);
+    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles).filter(p => !p.deleted_at && !p.email?.toLowerCase().includes('@demo.com'));
     return list.filter(p => {
       if (companyId && p.company_id !== companyId) return false;
       if (roleFilter && p.role !== roleFilter) return false;
@@ -399,7 +468,7 @@ export class DataStore {
         if (!snap.empty) {
           const list = snap.docs
             .map(d => d.data() as Profile)
-            .filter(p => !p.deleted_at);
+            .filter(p => !p.deleted_at && !p.email?.toLowerCase().includes('@demo.com'));
           return list;
         }
       } catch (err) {
@@ -407,7 +476,7 @@ export class DataStore {
       }
     }
 
-    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles).filter(p => !p.deleted_at);
+    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles).filter(p => !p.deleted_at && !p.email?.toLowerCase().includes('@demo.com'));
     return list.filter(p => {
       if (companyId && p.company_id !== companyId) return false;
       if (roleFilter && p.role !== roleFilter) return false;

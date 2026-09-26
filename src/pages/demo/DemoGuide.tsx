@@ -12,7 +12,15 @@ import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types';
 
 export const DemoGuide: React.FC = () => {
-  const { role, switchDemoRole } = useAuth();
+  const { role, switchDemoRole, isDevMaster } = useAuth();
+
+  if (!isDevMaster) {
+    return (
+      <div className="p-6 bg-slate-900 border border-slate-800 rounded-3xl text-center text-slate-300">
+        <p className="text-sm font-semibold">Acesso restrito ao Administrador DEV.</p>
+      </div>
+    );
+  }
 
   const demoProfiles: {
     role: UserRole;
@@ -39,7 +47,7 @@ export const DemoGuide: React.FC = () => {
       icon: Shield,
       accentColor: 'border-purple-200 hover:border-purple-500 bg-purple-50/20',
       badgeColor: 'bg-purple-100 text-purple-700',
-      userEmail: 'dev@demo.com',
+      userEmail: 'cast.servicostecnicos@gmail.com',
     },
     {
       role: 'EMPRESA',
@@ -55,7 +63,7 @@ export const DemoGuide: React.FC = () => {
       icon: Layers,
       accentColor: 'border-blue-200 hover:border-blue-500 bg-blue-50/20',
       badgeColor: 'bg-blue-100 text-blue-700',
-      userEmail: 'empresa@demo.com',
+      userEmail: 'empresa@cast.com',
     },
     {
       role: 'ZELADOR',
@@ -71,7 +79,7 @@ export const DemoGuide: React.FC = () => {
       icon: Wrench,
       accentColor: 'border-emerald-200 hover:border-emerald-500 bg-emerald-50/20',
       badgeColor: 'bg-emerald-100 text-emerald-700',
-      userEmail: 'zelador@demo.com',
+      userEmail: 'zelador@cast.com',
     },
     {
       role: 'ADM_PREDIAL',
@@ -87,7 +95,7 @@ export const DemoGuide: React.FC = () => {
       icon: Building2,
       accentColor: 'border-amber-200 hover:border-amber-500 bg-amber-50/20',
       badgeColor: 'bg-amber-100 text-amber-700',
-      userEmail: 'adm@demo.com',
+      userEmail: 'adm@cast.com',
     },
   ];
 
