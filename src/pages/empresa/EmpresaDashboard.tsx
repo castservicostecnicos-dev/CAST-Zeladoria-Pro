@@ -30,7 +30,11 @@ import {
   CloudUpload,
   LogOut,
   Check,
-  Loader2
+  Loader2,
+  ShieldCheck,
+  RefreshCw,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { 
   Task, 
@@ -45,13 +49,16 @@ import {
 } from '../../types';
 import { DataStore } from '../../services/store';
 import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { DailyReportManager } from '../../components/reports/DailyReportManager';
 import { 
   connectGoogleDrive, 
   disconnectGoogleDrive, 
-  isDriveConnected 
+  isDriveConnected,
+  extractDriveFolderId,
+  testDriveConnection
 } from '../../services/googleDriveService';
 
 interface EmpresaDashboardProps {
@@ -63,7 +70,31 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   activeSubTab = 'dashboard', 
   onSelectSubTab 
 }) => {
-  const { user, company } = useAuth();
+  const { user, company, refreshCompany } = useAuth();
+  const { showToast } = useToast();
+
+  // Google Drive State (Corporate company drive management)
+  const [driveFolderUrl, setDriveFolderUrl] = useState(company?.google_drive_folder_url || '');
+  const [driveFolderId, setDriveFolderId] = useState(company?.google_drive_folder_id || '');
+  const [driveFolderName, setDriveFolderName] = useState(company?.google_drive_folder_name || 'CAST - Documentos e Relatórios');
+  const [driveEmail, setDriveEmail] = useState(company?.google_drive_email || 'empresa@cast.com');
+  const [isDriveAuthConnected, setIsDriveAuthConnected] = useState(isDriveConnected() || Boolean(company?.google_drive_connected));
+  const [isConnectingDrive, setIsConnectingDrive] = useState(false);
+  const [isSavingDriveConfig, setIsSavingDriveConfig] = useState(false);
+  const [isTestingDrive, setIsTestingDrive] = useState(false);
+  const [driveTestMessage, setDriveTestMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [driveConfigSaved, setDriveConfigSaved] = useState(false);
+
+  // Sync Google Drive settings with Company updates
+  useEffect(() => {
+    if (company) {
+      setDriveFolderUrl(company.google_drive_folder_url || '');
+      setDriveFolderId(company.google_drive_folder_id || '');
+      setDriveFolderName(company.google_drive_folder_name || 'CAST - Documentos e Relatórios');
+      setDriveEmail(company.google_drive_email || 'empresa@cast.com');
+      setIsDriveAuthConnected(isDriveConnected() || Boolean(company.google_drive_connected));
+    }
+  }, [company]);
 
   // Data states
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -83,6 +114,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [selectedTaskDetails, setSelectedTaskDetails] = useState<Task | null>(null);
   const [showRoutineModal, setShowRoutineModal] = useState(false);
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [userModalType, setUserModalType] = useState<'ZELADOR' | 'ADM_PREDIAL'>('ZELADOR');
   const [editingUser, setEditingUser] = useState<Profile | null>(null);
@@ -187,7 +219,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     e.preventDefault();
     if (!user || !user.company_id) return;
     if (!taskForm.assigned_to) {
-      alert('Selecione um zelador responsável.');
+      showToast('Selecione um zelador responsável para a tarefa.', 'warning');
       return;
     }
 
@@ -207,6 +239,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       notes: taskForm.notes,
     }, user);
 
+    const createdTitle = taskForm.title;
     setShowTaskModal(false);
     setTaskForm({
       title: '',
@@ -221,29 +254,82 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       location: '',
       notes: '',
     });
+    showToast(`Tarefa "${createdTitle}" criada e atribuída com sucesso!`, 'success');
     loadAll();
   };
 
   // Routine Handlers
-  const handleCreateRoutine = async (e: React.FormEvent) => {
+  const handleOpenCreateRoutine = () => {
+    setEditingRoutine(null);
+    setRoutineForm({
+      name: '',
+      description: '',
+      location: '',
+      category: 'Limpeza',
+      priority: 'NORMAL' as TaskPriority,
+      assigned_to: zeladores[0]?.id || '',
+      property_id: properties[0]?.id || '',
+      frequency: 'diária' as RoutineFrequency,
+      scheduled_time: '08:00',
+      start_date: new Date().toISOString().split('T')[0],
+    });
+    setShowRoutineModal(true);
+  };
+
+  const handleOpenEditRoutine = (rot: Routine) => {
+    setEditingRoutine(rot);
+    setRoutineForm({
+      name: rot.name,
+      description: rot.description,
+      location: rot.location,
+      category: rot.category,
+      priority: rot.priority,
+      assigned_to: rot.assigned_to || (zeladores[0]?.id || ''),
+      property_id: rot.property_id || (properties[0]?.id || ''),
+      frequency: rot.frequency,
+      scheduled_time: rot.scheduled_time || '08:00',
+      start_date: rot.start_date || new Date().toISOString().split('T')[0],
+    });
+    setShowRoutineModal(true);
+  };
+
+  const handleSaveRoutine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !user.company_id) return;
 
-    await DataStore.createRoutine({
-      company_id: user.company_id,
-      property_id: routineForm.property_id || (properties[0]?.id || ''),
-      name: routineForm.name,
-      description: routineForm.description,
-      location: routineForm.location,
-      category: routineForm.category,
-      priority: routineForm.priority,
-      assigned_to: routineForm.assigned_to || (zeladores[0]?.id || ''),
-      frequency: routineForm.frequency,
-      scheduled_time: routineForm.scheduled_time,
-      start_date: routineForm.start_date,
-      active: true,
-    }, user);
+    if (editingRoutine) {
+      await DataStore.updateRoutine(editingRoutine.id, {
+        property_id: routineForm.property_id || (properties[0]?.id || ''),
+        name: routineForm.name,
+        description: routineForm.description,
+        location: routineForm.location,
+        category: routineForm.category,
+        priority: routineForm.priority,
+        assigned_to: routineForm.assigned_to || (zeladores[0]?.id || ''),
+        frequency: routineForm.frequency,
+        scheduled_time: routineForm.scheduled_time,
+        start_date: routineForm.start_date,
+      }, user);
+      showToast(`Rotina recorrente "${routineForm.name}" atualizada com sucesso!`, 'success');
+    } else {
+      await DataStore.createRoutine({
+        company_id: user.company_id,
+        property_id: routineForm.property_id || (properties[0]?.id || ''),
+        name: routineForm.name,
+        description: routineForm.description,
+        location: routineForm.location,
+        category: routineForm.category,
+        priority: routineForm.priority,
+        assigned_to: routineForm.assigned_to || (zeladores[0]?.id || ''),
+        frequency: routineForm.frequency,
+        scheduled_time: routineForm.scheduled_time,
+        start_date: routineForm.start_date,
+        active: true,
+      }, user);
+      showToast(`Rotina recorrente "${routineForm.name}" criada com sucesso!`, 'success');
+    }
 
+    setEditingRoutine(null);
     setShowRoutineModal(false);
     loadAll();
   };
@@ -251,7 +337,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   const handleGenerateTasksFromRoutines = async () => {
     if (!user || !user.company_id) return;
     const count = await DataStore.generateTasksFromRoutines(user.company_id, user);
-    alert(`Sucesso! ${count} tarefa(s) foram geradas a partir das rotinas ativas.`);
+    showToast(`Sucesso! ${count} tarefa(s) foram geradas a partir das rotinas ativas.`, 'success');
     loadAll();
   };
 
@@ -259,7 +345,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   const handleProcessRequest = async () => {
     if (!user || !selectedRequest) return;
     if (requestDecision === 'APROVADA' && !assignZeladorForRequest) {
-      alert('Selecione o zelador que executará a tarefa aprovada.');
+      showToast('Selecione o zelador que executará a tarefa aprovada.', 'warning');
       return;
     }
 
@@ -271,9 +357,11 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       rejectionReason
     );
 
+    const isApproved = requestDecision === 'APROVADA';
     setShowProcessRequestModal(false);
     setSelectedRequest(null);
     setRejectionReason('');
+    showToast(`Solicitação ${isApproved ? 'aprovada e convertida em tarefa' : 'recusada'} com sucesso!`, 'success');
     loadAll();
   };
 
@@ -324,6 +412,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         property_id: userForm.property_id,
         notes: userForm.notes,
       }, user);
+      showToast(`Dados de "${userForm.name}" atualizados com sucesso!`, 'success');
     } else {
       await DataStore.createProfile({
         auth_user_id: `auth-${Date.now()}`,
@@ -339,6 +428,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         status: 'Ativo',
         notes: userForm.notes,
       }, user);
+      showToast(`Novo ${userModalType === 'ZELADOR' ? 'zelador' : 'administrador predial'} "${userForm.name}" cadastrado!`, 'success');
     }
 
     setShowUserModal(false);
@@ -349,25 +439,32 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     if (!user) return;
     const nextStatus = u.status === 'Ativo' ? 'Inativo' : 'Ativo';
     await DataStore.updateProfile(u.id, { status: nextStatus }, user);
+    showToast(`Usuário "${u.name}" ${nextStatus === 'Ativo' ? 'ativado' : 'desativado'} com sucesso.`, 'info');
     loadAll();
   };
 
   const handleConfirmDelete = async () => {
     if (!user || !deleteTarget) return;
+    const targetName = deleteTarget.name;
+    const targetType = deleteTarget.type === 'task' ? 'Tarefa' : deleteTarget.type === 'routine' ? 'Rotina' : 'Usuário';
+
     if (deleteTarget.type === 'task') {
       await DataStore.deleteTask(deleteTarget.id, user);
     } else if (deleteTarget.type === 'user') {
       await DataStore.deleteProfile(deleteTarget.id, user);
+    } else if (deleteTarget.type === 'routine') {
+      await DataStore.deleteRoutine(deleteTarget.id, user);
     }
     setDeleteTarget(null);
     setShowConfirmDelete(false);
+    showToast(`${targetType} "${targetName}" excluída com sucesso.`, 'info');
     loadAll();
   };
 
   // Export CSV (Section 44)
   const handleExportCSV = () => {
     if (tasks.length === 0) {
-      alert('Nenhuma tarefa para exportar.');
+      showToast('Nenhuma tarefa para exportar no momento.', 'warning');
       return;
     }
 
@@ -395,6 +492,112 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Google Drive Handlers (Section: Empresa Google Drive Management)
+  const handleConnectDrive = async () => {
+    if (!company || !user) return;
+    setIsConnectingDrive(true);
+    setDriveTestMessage(null);
+    try {
+      const res = await connectGoogleDrive();
+      if (!res) {
+        setIsConnectingDrive(false);
+        return;
+      }
+      setIsDriveAuthConnected(true);
+      const emailToSave = res.user.email || driveEmail || 'empresa@cast.com';
+      setDriveEmail(emailToSave);
+
+      await DataStore.updateCompany(company.id, {
+        google_drive_connected: true,
+        google_drive_connected_at: new Date().toISOString(),
+        google_drive_email: emailToSave,
+      }, user);
+
+      await refreshCompany();
+      setDriveTestMessage({
+        type: 'success',
+        text: `Google Drive corporativo conectado com sucesso (${emailToSave})!`,
+      });
+    } catch (err: any) {
+      console.error('Erro ao conectar Google Drive:', err);
+      setDriveTestMessage({
+        type: 'error',
+        text: err?.message || 'Falha na autenticação com o Google.',
+      });
+    } finally {
+      setIsConnectingDrive(false);
+    }
+  };
+
+  const handleDisconnectDrive = async () => {
+    if (!company || !user) return;
+    disconnectGoogleDrive();
+    setIsDriveAuthConnected(false);
+    await DataStore.updateCompany(company.id, {
+      google_drive_connected: false,
+    }, user);
+    await refreshCompany();
+    setDriveTestMessage({
+      type: 'success',
+      text: 'Google Drive desconectado da sessão com segurança.',
+    });
+  };
+
+  const handleSaveDriveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!company || !user) return;
+    setIsSavingDriveConfig(true);
+    setDriveTestMessage(null);
+    try {
+      const cleanedId = extractDriveFolderId(driveFolderId || driveFolderUrl);
+      const finalUrl = driveFolderUrl.trim() || (cleanedId ? `https://drive.google.com/drive/folders/${cleanedId}` : '');
+
+      await DataStore.updateCompany(company.id, {
+        google_drive_email: driveEmail.trim().toLowerCase(),
+        google_drive_folder_name: driveFolderName.trim(),
+        google_drive_folder_id: cleanedId,
+        google_drive_folder_url: finalUrl,
+      }, user);
+
+      await refreshCompany();
+      setDriveConfigSaved(true);
+      showToast('Configurações do Google Drive salvas com sucesso!', 'success');
+      setTimeout(() => setDriveConfigSaved(false), 3500);
+    } catch (err: any) {
+      showToast('Erro ao salvar configurações do Google Drive: ' + err.message, 'error');
+    } finally {
+      setIsSavingDriveConfig(false);
+    }
+  };
+
+  const handleTestDrive = async () => {
+    setIsTestingDrive(true);
+    setDriveTestMessage(null);
+    try {
+      if (!isDriveConnected()) {
+        const conn = await connectGoogleDrive();
+        if (!conn) {
+          setIsTestingDrive(false);
+          return;
+        }
+        setIsDriveAuthConnected(true);
+      }
+
+      const res = await testDriveConnection(driveFolderId || driveFolderUrl, driveFolderName);
+      setDriveTestMessage({
+        type: 'success',
+        text: `Teste realizado com êxito! Pasta "${res.folderName}" verificada e pronta no Google Drive (${res.userEmail}).`,
+      });
+    } catch (err: any) {
+      setDriveTestMessage({
+        type: 'error',
+        text: 'Erro no teste: ' + (err?.message || 'Verifique as permissões da conta Google.'),
+      });
+    } finally {
+      setIsTestingDrive(false);
+    }
   };
 
   const renderDashboardView = () => (
@@ -785,14 +988,15 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={handleGenerateTasksFromRoutines}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+            title="Gera imediatamente as tarefas do dia com base nas rotinas ativas"
           >
             <Repeat className="w-4 h-4" />
             <span>Gerar Tarefas Agora</span>
           </button>
           <button
-            onClick={() => setShowRoutineModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm"
+            onClick={handleOpenCreateRoutine}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Nova Rotina</span>
@@ -801,44 +1005,89 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {routines.map((rot) => {
-          const resp = zeladores.find(z => z.id === rot.assigned_to);
-          return (
-            <div key={rot.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-                    {rot.frequency}
-                  </span>
-                  <button
-                    onClick={async () => {
-                      if (!user) return;
-                      await DataStore.toggleRoutineStatus(rot.id, !rot.active, user);
-                      loadAll();
-                    }}
-                    className={`text-xs font-bold px-2 py-0.5 rounded-full transition ${
-                      rot.active ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
-                    }`}
-                  >
-                    {rot.active ? 'Ativa' : 'Pausada'}
-                  </button>
-                </div>
-                <h4 className="text-sm font-bold text-slate-900">{rot.name}</h4>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">{rot.description}</p>
-                <div className="mt-3 text-xs text-slate-600 space-y-1">
-                  <div><strong>Local:</strong> {rot.location}</div>
-                  <div><strong>Horário:</strong> {rot.scheduled_time}</div>
-                  <div><strong>Responsável:</strong> {resp?.name || 'Zelador'}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
-                <span>Início: {rot.start_date}</span>
-                <PriorityBadge priority={rot.priority} />
-              </div>
+        {routines.length === 0 ? (
+          <div className="col-span-full bg-white border border-slate-200 rounded-3xl p-12 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3">
+              <Repeat className="w-6 h-6" />
             </div>
-          );
-        })}
+            <h4 className="text-sm font-bold text-slate-800">Nenhuma rotina periódica cadastrada</h4>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              Crie rotinas recorrentes de limpeza, manutenção e inspeções para geração automática de tarefas para os zeladores.
+            </p>
+            <button
+              onClick={handleOpenCreateRoutine}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Criar Primeira Rotina</span>
+            </button>
+          </div>
+        ) : (
+          routines.map((rot) => {
+            const resp = zeladores.find(z => z.id === rot.assigned_to);
+            return (
+              <div key={rot.id} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:shadow-md transition">
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                      {rot.frequency}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={async () => {
+                          if (!user) return;
+                          await DataStore.toggleRoutineStatus(rot.id, !rot.active, user);
+                          showToast(`Rotina "${rot.name}" ${!rot.active ? 'ativada' : 'pausada'}.`, 'info');
+                          loadAll();
+                        }}
+                        className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full transition cursor-pointer ${
+                          rot.active ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        }`}
+                        title={rot.active ? 'Clique para pausar esta rotina' : 'Clique para ativar esta rotina'}
+                      >
+                        {rot.active ? 'Ativa' : 'Pausada'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditRoutine(rot)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                        title="Editar rotina"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setDeleteTarget({ type: 'routine', id: rot.id, name: rot.name });
+                          setShowConfirmDelete(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        title="Excluir rotina"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-900">{rot.name}</h4>
+                  <p className="text-xs text-slate-500 mt-1 leading-relaxed">{rot.description}</p>
+                  <div className="mt-3 text-xs text-slate-600 space-y-1">
+                    <div><strong>Local:</strong> {rot.location}</div>
+                    <div><strong>Horário:</strong> {rot.scheduled_time}</div>
+                    <div><strong>Responsável:</strong> {resp?.name || 'Zelador'}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium">
+                      {rot.category || 'Limpeza'}
+                    </span>
+                    <span>Início: {rot.start_date}</span>
+                  </div>
+                  <PriorityBadge priority={rot.priority} />
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
@@ -1077,6 +1326,325 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     </div>
   );
 
+  const renderGoogleDriveView = () => (
+    <div className="space-y-6 w-full max-w-full overflow-x-hidden animate-fade-in">
+      {/* Top Banner / Privacy Alert */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">
+            <HardDrive className="w-4 h-4" />
+            <span>Módulo Exclusivo da Gerência</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+            <span>Google Drive Corporativo da Empresa</span>
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
+            Centralize todos os relatórios em PDF e comprovantes fotográficos de zeladoria na conta Google oficial da{' '}
+            <strong className="text-white font-bold">{company?.trade_name || 'CAST Serviços Técnicos'}</strong>. 
+            Esta área de configuração e conexão é restrita exclusivamente ao gerente da empresa.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition shadow-xs cursor-pointer border border-slate-700"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            <span>Voltar ao Dashboard</span>
+          </button>
+          {company?.google_drive_folder_url && (
+            <a
+              href={company.google_drive_folder_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Abrir Pasta no Google Drive</span>
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Security Privacy Notice */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-blue-900">
+        <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+        <div className="space-y-1">
+          <span className="font-bold block text-blue-950">Privacidade & Controle de Acesso Restrito</span>
+          <p className="leading-relaxed">
+            Nenhum outro usuário (zeladores em campo, síndicos ou administradores prediais) possui acesso a esta tela ou aos dados de conexão do Google Drive. Todas as imagens e relatórios são salvos de forma centralizada na pasta da empresa definida aqui.
+          </p>
+        </div>
+      </div>
+
+      {/* Feedback Messages */}
+      {driveTestMessage && (
+        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between gap-3 border animate-fade-in ${
+          driveTestMessage.type === 'success' 
+            ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+            : 'bg-rose-50 text-rose-900 border-rose-200'
+        }`}>
+          <div className="flex items-center gap-2">
+            {driveTestMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{driveTestMessage.text}</span>
+          </div>
+          <button 
+            onClick={() => setDriveTestMessage(null)}
+            className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {driveConfigSaved && (
+        <div className="p-4 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Configurações do Google Drive da Empresa salvas com sucesso!</span>
+        </div>
+      )}
+
+      {/* Two Column Cards Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Card 1: Conexão e Autenticação Google Workspace */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-5">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                  <HardDrive className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Status da Autenticação Google</h3>
+                  <p className="text-[11px] text-slate-400">Conexão oficial da empresa com a API do Google Workspace</p>
+                </div>
+              </div>
+
+              {isDriveAuthConnected ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Conectado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  Desconectado
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Conta Google da Empresa:</span>
+                  <strong className="text-slate-900 font-semibold">{company?.google_drive_email || driveEmail || 'empresa@cast.com'}</strong>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Status do Token de Sessão:</span>
+                  <span className={`font-bold ${isDriveAuthConnected ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    {isDriveAuthConnected ? 'Ativo e Autorizado' : 'Não autenticado'}
+                  </span>
+                </div>
+                {company?.google_drive_connected_at && (
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Última conexão:</span>
+                    <span className="text-slate-700">{new Date(company.google_drive_connected_at).toLocaleString('pt-BR')}</span>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                Ao conectar, o sistema solicita autorização para salvar e gerenciar arquivos de relatórios na conta da sua empresa sem expor chaves ou senhas em ambiente local.
+              </p>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2.5">
+            {isDriveAuthConnected ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleConnectDrive}
+                  disabled={isConnectingDrive}
+                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isConnectingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  <span>Reconectar / Trocar Conta</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectDrive}
+                  className="py-2.5 px-4 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Desconectar</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConnectDrive}
+                disabled={isConnectingDrive}
+                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-600/20 disabled:opacity-50"
+              >
+                {isConnectingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
+                <span>Conectar Conta Google da Empresa</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Card 2: Cadastro & Configurações da Pasta no Drive */}
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-5">
+          <form onSubmit={handleSaveDriveConfig} className="space-y-4">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                <Folder className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Cadastro da Pasta do Google Drive</h3>
+                <p className="text-[11px] text-slate-400">Identificação e localização da pasta corporativa de destino</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  E-mail Oficial da Empresa no Google *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={driveEmail}
+                  onChange={(e) => setDriveEmail(e.target.value.toLowerCase())}
+                  placeholder="empresa@cast.com"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nome da Pasta Oficial no Drive *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={driveFolderName}
+                  onChange={(e) => setDriveFolderName(e.target.value)}
+                  placeholder="Ex: CAST - Documentos e Relatórios de Zeladoria"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Link Compartilhado ou URL da Pasta no Google Drive (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={driveFolderUrl}
+                  onChange={(e) => {
+                    const url = e.target.value;
+                    setDriveFolderUrl(url);
+                    const extracted = extractDriveFolderId(url);
+                    if (extracted && extracted !== url) {
+                      setDriveFolderId(extracted);
+                    }
+                  }}
+                  placeholder="https://drive.google.com/drive/folders/..."
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Cole o link gerado pelo Google Drive. O ID da pasta será detectado automaticamente.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  ID da Pasta no Drive (Opcional)
+                </label>
+                <input
+                  type="text"
+                  value={driveFolderId}
+                  onChange={(e) => setDriveFolderId(e.target.value.trim())}
+                  placeholder="Ex: 1a2b3c4d5e6f7g8h9i0j"
+                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleTestDrive}
+                disabled={isTestingDrive}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Testar acesso e verificar a pasta no Google Drive"
+              >
+                {isTestingDrive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-blue-600" />}
+                <span>{isTestingDrive ? 'Testando...' : 'Testar Conexão'}</span>
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSavingDriveConfig}
+                className="py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSavingDriveConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                <span>Salvar Cadastro do Drive</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      {/* Card 3: Fluxo de Funcionamento e Informações Técnicas */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
+        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+          <span>Como funciona a integração com o Google Drive da empresa</span>
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
+              Relatórios Diários em PDF
+            </span>
+            <p className="text-slate-600 leading-relaxed text-[11px]">
+              Ao gerar um relatório no módulo de relatórios, o botão &quot;Salvar no Google Drive&quot; envia o arquivo PDF formatado diretamente para a pasta oficial da empresa.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
+              Fotos Comprovatórias de Campo
+            </span>
+            <p className="text-slate-600 leading-relaxed text-[11px]">
+              Os zeladores registram o antes e depois das tarefas. Essas fotos são arquivadas na subpasta de comprovantes no Drive corporativo da empresa de forma transparente.
+            </p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
+            <span className="font-bold text-slate-900 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
+              Sem Exposição de Credenciais
+            </span>
+            <p className="text-slate-600 leading-relaxed text-[11px]">
+              O acesso aos arquivos é mantido exclusivamente sob controle da empresa prestadora e do síndico por relatórios, garantindo a privacidade das imagens e dos registros prediais.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6 w-full max-w-full overflow-x-hidden">
       {/* Sub-Tabs Selector */}
@@ -1089,6 +1657,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           { id: 'zeladores', label: `Zeladores (${zeladores.length})` },
           { id: 'adm_predial', label: `ADM Predial (${adms.length})` },
           { id: 'relatorios', label: 'Relatórios & Exportação' },
+          { id: 'google_drive', label: 'Google Drive Corporativo' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1112,6 +1681,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       {activeSubTab === 'zeladores' && renderUsersView('ZELADOR')}
       {activeSubTab === 'adm_predial' && renderUsersView('ADM_PREDIAL')}
       {activeSubTab === 'relatorios' && renderReportsView()}
+      {activeSubTab === 'google_drive' && renderGoogleDriveView()}
 
       {/* Create Task Modal (Section 9) */}
       <Modal
@@ -1309,15 +1879,18 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         </Modal>
       )}
 
-      {/* Create Routine Modal (Section 10) */}
+      {/* Create / Edit Routine Modal */}
       <Modal
         isOpen={showRoutineModal}
-        onClose={() => setShowRoutineModal(false)}
-        title="Criar Rotina Recorrente"
-        subtitle="Tarefas recorrentes geradas periodicamente para a equipe."
+        onClose={() => {
+          setShowRoutineModal(false);
+          setEditingRoutine(null);
+        }}
+        title={editingRoutine ? "Editar Rotina Recorrente" : "Criar Rotina Recorrente"}
+        subtitle={editingRoutine ? `Ajuste os parâmetros da rotina "${editingRoutine.name}".` : "Tarefas recorrentes geradas periodicamente para a equipe."}
         maxWidth="lg"
       >
-        <form onSubmit={handleCreateRoutine} className="space-y-3.5">
+        <form onSubmit={handleSaveRoutine} className="space-y-3.5">
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">Nome da Rotina *</label>
             <input
@@ -1326,7 +1899,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
               value={routineForm.name}
               onChange={(e) => setRoutineForm({ ...routineForm, name: e.target.value.toUpperCase() })}
               placeholder="Ex: Vistoria diária de bombas e reservatórios"
-              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 uppercase"
             />
           </div>
 
@@ -1368,6 +1941,38 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Categoria</label>
+              <select
+                value={routineForm.category}
+                onChange={(e) => setRoutineForm({ ...routineForm, category: e.target.value })}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+              >
+                <option value="Limpeza">Limpeza</option>
+                <option value="Manutenção">Manutenção</option>
+                <option value="Inspeção">Inspeção</option>
+                <option value="Segurança">Segurança</option>
+                <option value="Jardinagem">Jardinagem</option>
+                <option value="Piscina">Piscina</option>
+                <option value="Outros">Outros</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Prioridade</label>
+              <select
+                value={routineForm.priority}
+                onChange={(e) => setRoutineForm({ ...routineForm, priority: e.target.value as TaskPriority })}
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+              >
+                <option value="BAIXA">Baixa</option>
+                <option value="NORMAL">Normal</option>
+                <option value="ALTA">Alta</option>
+                <option value="URGENTE">Urgente</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Zelador Padrão</label>
               <select
                 value={routineForm.assigned_to}
@@ -1386,7 +1991,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
                 value={routineForm.location}
                 onChange={(e) => setRoutineForm({ ...routineForm, location: e.target.value.toUpperCase() })}
                 placeholder="Ex: Área externa e jardins"
-                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 uppercase"
               />
             </div>
           </div>
@@ -1394,16 +1999,19 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
-              onClick={() => setShowRoutineModal(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              onClick={() => {
+                setShowRoutineModal(false);
+                setEditingRoutine(null);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition"
+              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition cursor-pointer"
             >
-              Salvar Rotina
+              {editingRoutine ? 'Salvar Alterações' : 'Criar Rotina'}
             </button>
           </div>
         </form>
@@ -1619,8 +2227,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         isOpen={showConfirmDelete}
         onClose={() => setShowConfirmDelete(false)}
         onConfirm={handleConfirmDelete}
-        title={`Excluir ${deleteTarget?.type === 'task' ? 'Tarefa' : 'Usuário'}`}
-        message={`Tem certeza que deseja excluir "${deleteTarget?.name}"? Esta ação aplicará exclusão lógica (soft delete) para garantir a preservação do histórico de dados.`}
+        title={`Excluir ${deleteTarget?.type === 'task' ? 'Tarefa' : deleteTarget?.type === 'routine' ? 'Rotina Recorrente' : 'Usuário'}`}
+        message={`Tem certeza que deseja excluir "${deleteTarget?.name}"? Esta ação removerá ${deleteTarget?.type === 'routine' ? 'esta rotina periódica da empresa' : deleteTarget?.type === 'task' ? 'esta tarefa do sistema' : 'este usuário'}.`}
         confirmText="Sim, excluir"
         cancelText="Cancelar"
         isDestructive={true}

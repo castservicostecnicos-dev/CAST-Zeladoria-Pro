@@ -20,6 +20,8 @@ import {
 import { Task, Company, Property, Profile } from '../../types';
 import { downloadDailyReportPDF, generateDailyReportPDF } from '../../services/pdfReportGenerator';
 import { isDriveConnected, connectGoogleDrive, uploadPdfToDrive } from '../../services/googleDriveService';
+import { useAuth } from '../../contexts/AuthContext';
+import { useToast } from '../../contexts/ToastContext';
 
 interface DailyReportManagerProps {
   tasks: Task[];
@@ -40,6 +42,9 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
   currentUserName = 'Administrador',
   isAdmPredial = false,
 }) => {
+  const { user: authUser } = useAuth();
+  const isCompanyManager = !isAdmPredial && authUser?.role === 'EMPRESA';
+
   // Default date to today
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
@@ -139,7 +144,7 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
       const filename = `relatorio_diario_${condName}_${sanitizedDate}.pdf`;
 
       const folderName = company?.google_drive_folder_name || (company?.trade_name ? `${company.trade_name} - Relatórios` : undefined);
-      const uploadRes = await uploadPdfToDrive(pdfBlob, filename, folderName);
+      const uploadRes = await uploadPdfToDrive(pdfBlob, filename, folderName, company?.google_drive_folder_id);
       setDriveUploadResult(uploadRes);
     } catch (err: any) {
       if (
@@ -190,7 +195,7 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
 
         {/* Quick Action PDF Buttons */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {!isAdmPredial && (
+          {isCompanyManager && (
             <button
               onClick={handleSaveToGoogleDrive}
               disabled={isSavingToDrive || isGenerating}
@@ -233,7 +238,7 @@ export const DailyReportManager: React.FC<DailyReportManagerProps> = ({
       </div>
 
       {/* Google Drive Upload Success Alert */}
-      {!isAdmPredial && driveUploadResult && (
+      {isCompanyManager && driveUploadResult && (
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 print:hidden animate-fade-in">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />

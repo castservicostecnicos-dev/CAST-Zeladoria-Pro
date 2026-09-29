@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { DailyReportManager } from '../../components/reports/DailyReportManager';
+import { useToast } from '../../contexts/ToastContext';
 
 interface AdmPredialDashboardProps {
   activeTabProp?: string;
@@ -31,10 +32,12 @@ export const AdmPredialDashboard: React.FC<AdmPredialDashboardProps> = ({
   onSelectTab
 }) => {
   const { user, property, company } = useAuth();
+  const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [requests, setRequests] = useState<TaskRequest[]>([]);
   const [zeladores, setZeladores] = useState<Profile[]>([]);
   const [activeTab, setActiveTab] = useState<'tarefas' | 'solicitacoes' | 'relatorios'>('tarefas');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (activeTabProp === 'relatorios' || activeTabProp === 'solicitacoes' || activeTabProp === 'tarefas') {
@@ -75,31 +78,38 @@ export const AdmPredialDashboard: React.FC<AdmPredialDashboardProps> = ({
     e.preventDefault();
     if (!user || !user.company_id) return;
 
-    await DataStore.createRequest({
-      company_id: user.company_id,
-      property_id: user.property_id || (property?.id || 'prop-demo-001'),
-      requested_by: user.id,
-      title: requestForm.title,
-      description: requestForm.description,
-      location: requestForm.location,
-      priority: requestForm.priority,
-      desired_date: requestForm.desired_date,
-      desired_time: requestForm.desired_time,
-      notes: requestForm.notes,
-    }, user);
+    setIsSubmitting(true);
+    try {
+      await DataStore.createRequest({
+        company_id: user.company_id,
+        property_id: user.property_id || (property?.id || 'prop-demo-001'),
+        requested_by: user.id,
+        title: requestForm.title,
+        description: requestForm.description,
+        location: requestForm.location,
+        priority: requestForm.priority,
+        desired_date: requestForm.desired_date,
+        desired_time: requestForm.desired_time,
+        notes: requestForm.notes,
+      }, user);
 
-    setShowRequestModal(false);
-    setRequestForm({
-      title: '',
-      description: '',
-      location: '',
-      priority: 'NORMAL',
-      desired_date: new Date().toISOString().split('T')[0],
-      desired_time: '14:00',
-      notes: '',
-    });
-    alert('Solicitação enviada com sucesso para a equipe de gestão da empresa!');
-    loadData();
+      setShowRequestModal(false);
+      setRequestForm({
+        title: '',
+        description: '',
+        location: '',
+        priority: 'NORMAL',
+        desired_date: new Date().toISOString().split('T')[0],
+        desired_time: '14:00',
+        notes: '',
+      });
+      toast.success('Solicitação enviada com sucesso para a equipe de gestão da empresa!');
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao enviar solicitação: ' + (err?.message || 'Falha na comunicação.'));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -431,16 +441,17 @@ export const AdmPredialDashboard: React.FC<AdmPredialDashboardProps> = ({
             <button
               type="button"
               onClick={() => setShowRequestModal(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition flex items-center gap-1.5"
+              disabled={isSubmitting}
+              className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Enviar Solicitação</span>
+              <span>{isSubmitting ? 'Enviando Solicitação...' : 'Enviar Solicitação'}</span>
             </button>
           </div>
         </form>
@@ -481,6 +492,16 @@ export const AdmPredialDashboard: React.FC<AdmPredialDashboardProps> = ({
                 />
               </div>
             )}
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedTaskDetails(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         </Modal>
       )}

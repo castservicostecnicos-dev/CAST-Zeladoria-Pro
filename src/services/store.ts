@@ -860,6 +860,24 @@ export class DataStore {
     return updatedList.find(r => r.id === id)!;
   }
 
+  static async updateRoutine(id: string, updates: Partial<Routine>, actor: Profile): Promise<Routine> {
+    const list = getLocal<Routine[]>(KEYS.ROUTINES, initialRoutines);
+    const updatedList = list.map(r => r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r);
+    setLocal(KEYS.ROUTINES, updatedList);
+
+    if (isFirebaseConfigured) {
+      try {
+        await updateDoc(doc(db, 'routines', id), { ...updates, updated_at: new Date().toISOString() });
+      } catch (err) {
+        console.warn('Erro ao atualizar rotina no Firestore:', err);
+      }
+    }
+
+    const updated = updatedList.find(r => r.id === id)!;
+    await DataStore.logAction(actor, `edição da rotina: ${updated?.name || id}`, 'routine', id);
+    return updated;
+  }
+
   static async deleteRoutine(id: string, actor: Profile): Promise<void> {
     const list = getLocal<Routine[]>(KEYS.ROUTINES, initialRoutines);
     const filtered = list.filter(r => r.id !== id);

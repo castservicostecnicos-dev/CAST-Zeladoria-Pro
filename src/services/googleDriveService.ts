@@ -88,11 +88,52 @@ export function disconnectGoogleDrive(): void {
 }
 
 /**
- * Obtém ou cria a pasta no Google Drive do usuário para organizar os arquivos da zeladoria.
+ * Extrai o ID da pasta do Google Drive caso o usuário cole a URL completa do navegador.
+ * Ex: https://drive.google.com/drive/folders/1ABC123xyz -> 1ABC123xyz
  */
-async function getOrCreateDriveFolder(accessToken: string, folderName = DRIVE_FOLDER_NAME): Promise<string | null> {
+export function extractDriveFolderId(input?: string | null): string {
+  if (!input) return '';
+  const trimmed = input.trim();
+  const match = trimmed.match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  const idMatch = trimmed.match(/id=([a-zA-Z0-9_-]+)/);
+  if (idMatch && idMatch[1]) {
+    return idMatch[1];
+  }
+  return trimmed;
+}
+
+/**
+ * Obtém ou cria a pasta no Google Drive para organizar os arquivos da zeladoria.
+ * Se um ID de pasta for fornecido diretamente, verifica sua existência e o utiliza.
+ */
+export async function getOrCreateDriveFolder(
+  accessToken: string, 
+  folderName = DRIVE_FOLDER_NAME,
+  customFolderId?: string | null
+): Promise<string | null> {
+  // Se já tiver um folderId customizado e válido
+  const cleanCustomId = extractDriveFolderId(customFolderId);
+  if (cleanCustomId && cleanCustomId.length > 10) {
+    try {
+      const checkRes = await fetch(`https://www.googleapis.com/drive/v3/files/${cleanCustomId}?fields=id,name,trashed`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (checkRes.ok) {
+        const fileInfo = await checkRes.json();
+        if (!fileInfo.trashed) {
+          return fileInfo.id;
+        }
+      }
+    } catch (checkErr) {
+      console.warn('[GoogleDrive] Não foi possível validar ID customizado, buscando pelo nome:', checkErr);
+    }
+  }
+
   try {
-    // 1. Verificar se a pasta já existe
+    // 1. Verificar se a pasta já existe com o nome especificado
     const query = encodeURIComponent(`name = '${folderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`);
     const searchRes = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -143,13 +184,14 @@ export async function uploadFileToDrive(
   fileBlob: Blob,
   fileName: string,
   mimeType: string,
-  folderName = DRIVE_FOLDER_NAME
+  folderName = DRIVE_FOLDER_NAME,
+  customFolderId?: string | null
 ): Promise<DriveUploadResult> {
   if (!cachedAccessToken) {
     throw new Error('Google Drive não está conectado. Conecte sua conta Google antes de realizar o envio.');
   }
 
-  const parentFolderId = await getOrCreateDriveFolder(cachedAccessToken, folderName);
+  const parentFolderId = await getOrCreateDriveFolder(cachedAccessToken, folderName, customFolderId);
 
   const metadata: Record<string, unknown> = {
     name: fileName,
@@ -240,7 +282,32 @@ export async function uploadBase64ImageToDrive(
 export async function uploadPdfToDrive(
   pdfBlob: Blob,
   fileName: string,
-  folderName: string = `${DRIVE_FOLDER_NAME}/Relatórios Diários`
+  folderName: string = `${DRIVE_FOLDER_NAME}/Relatórios Diários`,
+  customFolderId?: string | null
 ): Promise<DriveUploadResult> {
-  return uploadFileToDrive(pdfBlob, fileName, 'application/pdf', folderName);
+  return uploadFileToDrive(pdfBlob, fileName, 'application/pdf', folderName, customFolderId);
+}
+
+/**
+ * Realiza um teste de diagnóstico da conexão corporativa com o Google Drive
+ * e garante a existência da pasta da empresa.
+ */
+export async function testDriveConnection(
+  customFolderId?: string | null,
+  customFolderName?: string
+): Promise<{ success: boolean; folderId: string | null; folderName: string; userEmail: string }> {
+  if (!cachedAccessToken) {
+    throw new Error('Google Drive não está autenticado. Conecte a conta da empresa antes de testar.');
+  }
+
+  const folderNameToUse = customFolderName || DRIVE_FOLDER_NAME;
+  const folderId = await getOrCreateDriveFolder(cachedAccessToken, folderNameToUse, customFolderId);
+  const userEmail = cachedGoogleUser?.email || 'empresa@cast.com';
+
+  return {
+    success: true,
+    folderId,
+    folderName: folderNameToUse,
+    userEmail,
+  };
 }

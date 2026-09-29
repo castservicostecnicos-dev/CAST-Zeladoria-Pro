@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 import { Login } from './pages/auth/Login';
 import { DevDashboard } from './pages/dev/DevDashboard';
 import { EmpresaDashboard } from './pages/empresa/EmpresaDashboard';
@@ -10,13 +11,38 @@ import { MyProfile } from './pages/profile/MyProfile';
 import { Header } from './components/layout/Header';
 import { Sidebar } from './components/layout/Sidebar';
 import { OfflineIndicator } from './components/ui/PWAInstallButton';
-import { ToastContainer } from './components/ui/Toast';
 
 function AppContent() {
   const { user, role, isLoading, switchDemoRole, isDevMaster } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [tabHistory, setTabHistory] = useState<string[]>([]);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+
+  // Define valid tabs per role to prevent blank screens when alternating profiles
+  const getValidTabsForRole = (r: string): string[] => {
+    switch (r) {
+      case 'DEV':
+        return ['dashboard', 'empresas', 'demonstracao', 'perfil'];
+      case 'EMPRESA':
+        return ['dashboard', 'tarefas', 'rotinas', 'solicitacoes', 'zeladores', 'adm_predial', 'relatorios', 'google_drive', 'perfil'];
+      case 'ZELADOR':
+        return ['dashboard', 'tarefas', 'perfil'];
+      case 'ADM_PREDIAL':
+        return ['dashboard', 'tarefas', 'solicitacoes', 'relatorios', 'perfil'];
+      default:
+        return ['dashboard', 'perfil'];
+    }
+  };
+
+  // When role changes (e.g. demo role switch or login), ensure the activeTab belongs to this role
+  useEffect(() => {
+    if (!role) return;
+    const validTabs = getValidTabsForRole(role);
+    if (!validTabs.includes(activeTab)) {
+      setActiveTab('dashboard');
+      setTabHistory([]);
+    }
+  }, [role]);
 
   const handleSelectTab = (newTab: string) => {
     if (newTab === 'demonstracao' && !isDevMaster) {
@@ -34,6 +60,9 @@ function AppContent() {
       const prevTab = nextHistory.pop()!;
       setTabHistory(nextHistory);
       setActiveTab(prevTab);
+    } else if (isDevMaster && role !== 'DEV') {
+      switchDemoRole('DEV');
+      setActiveTab('dashboard');
     } else {
       setActiveTab('dashboard');
     }
@@ -101,6 +130,10 @@ function AppContent() {
       return <MyProfile onBack={handleGoBack} />;
     }
 
+    if (activeTab === 'demonstracao') {
+      return <DemoGuide />;
+    }
+
     switch (role) {
       case 'DEV':
         return (
@@ -130,23 +163,27 @@ function AppContent() {
     }
   };
 
+  const canGoBack = activeTab !== 'dashboard' || tabHistory.length > 0 || (isDevMaster && role !== 'DEV');
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans text-slate-800 w-full max-w-full overflow-x-hidden">
       <OfflineIndicator />
 
-      {/* Sidebar Navigation */}
-      <Sidebar
-        currentTab={activeTab}
-        onSelectTab={handleSelectTab}
-        isOpenMobile={isMobileSidebarOpen}
-        onCloseMobile={() => setIsMobileSidebarOpen(false)}
-      />
+      {/* Sidebar Navigation (Oculto para Zelador, que utiliza navegação pelo ícone de perfil) */}
+      {role !== 'ZELADOR' && (
+        <Sidebar
+          currentTab={activeTab}
+          onSelectTab={handleSelectTab}
+          isOpenMobile={isMobileSidebarOpen}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden">
         <Header 
           title={getPageTitle()}
-          onToggleSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)} 
+          onToggleSidebar={role !== 'ZELADOR' ? () => setIsMobileSidebarOpen(!isMobileSidebarOpen) : undefined} 
           onReturnToDev={() => {
             if (isDevMaster) {
               switchDemoRole('DEV');
@@ -154,14 +191,14 @@ function AppContent() {
             }
           }}
           onGoBack={handleGoBack}
+          canGoBack={canGoBack}
+          onSelectTab={handleSelectTab}
         />
 
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto overflow-x-hidden">
           {renderMainContent()}
         </main>
       </div>
-
-      <ToastContainer toasts={[]} onDismiss={() => {}} />
     </div>
   );
 }
@@ -169,7 +206,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }

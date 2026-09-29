@@ -30,6 +30,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge } from '../../components/ui/Badge';
 import { Modal, ConfirmModal } from '../../components/ui/Modal';
 import { DemoGuide } from '../demo/DemoGuide';
+import { useToast } from '../../contexts/ToastContext';
 
 interface DevDashboardProps {
   activeTab?: string;
@@ -41,7 +42,9 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
   onSelectTab
 }) => {
   const { user, switchDemoRole } = useAuth();
+  const toast = useToast();
   const [internalTab, setInternalTab] = useState<'empresas' | 'demonstracao'>('empresas');
+  const [isSaving, setIsSaving] = useState(false);
 
   const currentTab = externalActiveTab === 'demonstracao' ? 'demonstracao' : internalTab;
 
@@ -207,14 +210,22 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
     e.preventDefault();
     if (!user) return;
 
-    if (editingCompany) {
-      await DataStore.updateCompany(editingCompany.id, formData, user);
-    } else {
-      await DataStore.createCompany(formData, user);
+    setIsSaving(true);
+    try {
+      if (editingCompany) {
+        await DataStore.updateCompany(editingCompany.id, formData, user);
+        toast.success(`Empresa "${formData.trade_name || formData.legal_name}" atualizada com sucesso!`);
+      } else {
+        await DataStore.createCompany(formData, user);
+        toast.success(`Nova empresa "${formData.trade_name || formData.legal_name}" cadastrada com sucesso!`);
+      }
+      setShowRegisterModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao salvar empresa: ' + (err?.message || 'Falha no processamento.'));
+    } finally {
+      setIsSaving(false);
     }
-
-    setShowRegisterModal(false);
-    loadData();
   };
 
   const handleSaveDev = async (e: React.FormEvent) => {
@@ -222,84 +233,114 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
     if (!user) return;
 
     if (!devFormData.name.trim() || !devFormData.email.trim()) {
-      alert('Por favor, preencha o nome e o e-mail do desenvolvedor.');
+      toast.warning('Por favor, preencha o nome e o e-mail do desenvolvedor.');
       return;
     }
 
-    if (editingDev) {
-      await DataStore.updateProfile(editingDev.id, {
-        name: devFormData.name.toUpperCase().trim(),
-        email: devFormData.email.toLowerCase().trim(),
-        phone: devFormData.phone.toUpperCase().trim(),
-        cpf: devFormData.cpf.toUpperCase().trim(),
-        city: devFormData.city.toUpperCase().trim(),
-        state: devFormData.state.toUpperCase().trim(),
-        status: devFormData.status,
-        notes: devFormData.notes.toUpperCase().trim(),
-      }, user);
-      alert('Dados do desenvolvedor DEV atualizados com sucesso!');
-    } else {
-      const allProfiles = await DataStore.getProfiles();
-      const existing = allProfiles.find(p => p.email.toLowerCase().trim() === devFormData.email.toLowerCase().trim() && !p.deleted_at);
-      if (existing) {
-        alert(`Atenção: Já existe um usuário cadastrado com o e-mail: ${devFormData.email}`);
-        return;
+    setIsSaving(true);
+    try {
+      if (editingDev) {
+        await DataStore.updateProfile(editingDev.id, {
+          name: devFormData.name.toUpperCase().trim(),
+          email: devFormData.email.toLowerCase().trim(),
+          phone: devFormData.phone.toUpperCase().trim(),
+          cpf: devFormData.cpf.toUpperCase().trim(),
+          city: devFormData.city.toUpperCase().trim(),
+          state: devFormData.state.toUpperCase().trim(),
+          status: devFormData.status,
+          notes: devFormData.notes.toUpperCase().trim(),
+        }, user);
+        toast.success(`Desenvolvedor DEV "${devFormData.name.toUpperCase().trim()}" atualizado com sucesso!`);
+      } else {
+        const allProfiles = await DataStore.getProfiles();
+        const existing = allProfiles.find(p => p.email.toLowerCase().trim() === devFormData.email.toLowerCase().trim() && !p.deleted_at);
+        if (existing) {
+          toast.warning(`Atenção: Já existe um usuário cadastrado com o e-mail: ${devFormData.email}`);
+          setIsSaving(false);
+          return;
+        }
+
+        await DataStore.createProfile({
+          auth_user_id: `auth-dev-${Date.now()}`,
+          role: 'DEV',
+          name: devFormData.name.toUpperCase().trim(),
+          email: devFormData.email.toLowerCase().trim(),
+          phone: devFormData.phone.toUpperCase().trim(),
+          cpf: devFormData.cpf.toUpperCase().trim(),
+          city: devFormData.city.toUpperCase().trim(),
+          state: devFormData.state.toUpperCase().trim(),
+          status: devFormData.status,
+          notes: devFormData.notes ? devFormData.notes.toUpperCase().trim() : 'DESENVOLVEDOR / ADMINISTRADOR GLOBAL DEV',
+        }, user);
+        toast.success(`Novo Desenvolvedor (DEV) "${devFormData.name.toUpperCase().trim()}" cadastrado com sucesso!`);
       }
 
-      await DataStore.createProfile({
-        auth_user_id: `auth-dev-${Date.now()}`,
-        role: 'DEV',
-        name: devFormData.name.toUpperCase().trim(),
-        email: devFormData.email.toLowerCase().trim(),
-        phone: devFormData.phone.toUpperCase().trim(),
-        cpf: devFormData.cpf.toUpperCase().trim(),
-        city: devFormData.city.toUpperCase().trim(),
-        state: devFormData.state.toUpperCase().trim(),
-        status: devFormData.status,
-        notes: devFormData.notes ? devFormData.notes.toUpperCase().trim() : 'DESENVOLVEDOR / ADMINISTRADOR GLOBAL DEV',
-      }, user);
-      alert(`Novo Desenvolvedor (DEV) cadastrado com sucesso!\n\nNome: ${devFormData.name.toUpperCase().trim()}\nE-mail de Login: ${devFormData.email.toLowerCase().trim()}`);
+      setShowRegisterModal(false);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao salvar desenvolvedor: ' + (err?.message || 'Falha no processamento.'));
+    } finally {
+      setIsSaving(false);
     }
-
-    setShowRegisterModal(false);
-    loadData();
   };
 
   const handleToggleStatus = async (comp: Company) => {
     if (!user) return;
-    const nextStatus = comp.status === 'Ativa' ? 'Inativa' : 'Ativa';
-    await DataStore.updateCompany(comp.id, { status: nextStatus }, user);
-    loadData();
+    try {
+      const nextStatus = comp.status === 'Ativa' ? 'Inativa' : 'Ativa';
+      await DataStore.updateCompany(comp.id, { status: nextStatus }, user);
+      toast.info(`Empresa "${comp.trade_name}" ${nextStatus === 'Ativa' ? 'ativada' : 'desativada'} com sucesso.`);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao alterar status: ' + (err?.message || 'Falha.'));
+    }
   };
 
   const handleToggleDevStatus = async (dev: Profile) => {
     if (!user) return;
     if (dev.id === user.id) {
-      alert('Você não pode desativar seu próprio usuário em sessão ativa.');
+      toast.warning('Você não pode desativar seu próprio usuário em sessão ativa.');
       return;
     }
-    const nextStatus = dev.status === 'Ativo' ? 'Inativo' : 'Ativo';
-    await DataStore.updateProfile(dev.id, { status: nextStatus }, user);
-    loadData();
+    try {
+      const nextStatus = dev.status === 'Ativo' ? 'Inativo' : 'Ativo';
+      await DataStore.updateProfile(dev.id, { status: nextStatus }, user);
+      toast.info(`Desenvolvedor "${dev.name}" ${nextStatus === 'Ativo' ? 'ativado' : 'desativado'} com sucesso.`);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao alterar status: ' + (err?.message || 'Falha.'));
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!user || !companyToDelete) return;
-    await DataStore.deleteCompany(companyToDelete.id, user);
-    setCompanyToDelete(null);
-    loadData();
+    try {
+      const name = companyToDelete.trade_name;
+      await DataStore.deleteCompany(companyToDelete.id, user);
+      setCompanyToDelete(null);
+      toast.info(`Empresa "${name}" excluída (soft-delete preservado).`);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao excluir empresa: ' + (err?.message || 'Falha.'));
+    }
   };
 
   const handleConfirmDeleteDev = async () => {
     if (!user || !devToDelete) return;
     if (devToDelete.id === user.id) {
-      alert('Você não pode excluir seu próprio usuário em sessão ativa.');
+      toast.warning('Você não pode excluir seu próprio usuário em sessão ativa.');
       return;
     }
-    await DataStore.deleteProfile(devToDelete.id, user);
-    setDevToDelete(null);
-    setShowDevDeleteModal(false);
-    loadData();
+    try {
+      const name = devToDelete.name;
+      await DataStore.deleteProfile(devToDelete.id, user);
+      setDevToDelete(null);
+      setShowDevDeleteModal(false);
+      toast.info(`Desenvolvedor "${name}" excluído.`);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao excluir desenvolvedor: ' + (err?.message || 'Falha.'));
+    }
   };
 
   const handleOpenResetForDev = (dev: Profile) => {
@@ -341,6 +382,7 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
     setNewDirectPassword(res);
     setConfirmDirectPassword(res);
     setShowDirectPassword(true);
+    toast.info('Senha aleatória forte gerada!');
   };
 
   const handleSaveDirectPassword = async (e: React.FormEvent) => {
@@ -348,23 +390,23 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
     if (!user || !userToResetPassword) return;
 
     if (!newDirectPassword || newDirectPassword.length < 4) {
-      alert('A nova senha deve possuir ao menos 4 caracteres.');
+      toast.warning('A nova senha deve possuir ao menos 4 caracteres.');
       return;
     }
 
     if (newDirectPassword !== confirmDirectPassword) {
-      alert('A confirmação de senha não confere. Por favor, digite a mesma senha nos dois campos.');
+      toast.warning('A confirmação de senha não confere. Por favor, digite a mesma senha nos dois campos.');
       return;
     }
 
     setIsResettingPassword(true);
     try {
       await DataStore.resetUserPassword(userToResetPassword.id, newDirectPassword, user);
-      alert(`Senha redefinida com sucesso para o usuário "${userToResetPassword.name}" (${userToResetPassword.email})!\n\nA nova senha já está ativa para acesso imediato no sistema sem necessidade de link por e-mail.`);
+      toast.success(`Senha redefinida com sucesso para "${userToResetPassword.name}"!`);
       setShowResetModal(false);
       setUserToResetPassword(null);
     } catch (err: any) {
-      alert(err.message || 'Erro ao salvar nova senha.');
+      toast.error(err.message || 'Erro ao salvar nova senha.');
     } finally {
       setIsResettingPassword(false);
     }
@@ -1004,9 +1046,10 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition cursor-pointer"
+                disabled={isSaving}
+                className="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-sm transition cursor-pointer"
               >
-                {editingCompany ? 'Salvar Alterações' : 'Concluir Cadastro da Empresa'}
+                {isSaving ? 'Salvando...' : editingCompany ? 'Salvar Alterações' : 'Concluir Cadastro da Empresa'}
               </button>
             </div>
           </form>
@@ -1136,9 +1179,10 @@ export const DevDashboard: React.FC<DevDashboardProps> = ({
               </button>
               <button
                 type="submit"
-                className="px-5 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-sm transition cursor-pointer"
+                disabled={isSaving}
+                className="px-5 py-2 text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 rounded-xl shadow-sm transition cursor-pointer"
               >
-                {editingDev ? 'Salvar Alterações do Dev' : 'Concluir Cadastro do Dev'}
+                {isSaving ? 'Salvando...' : editingDev ? 'Salvar Alterações do Dev' : 'Concluir Cadastro do Dev'}
               </button>
             </div>
           </form>

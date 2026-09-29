@@ -10,6 +10,8 @@ import {
   Calendar, 
   Check, 
   ArrowRight,
+  ArrowLeft,
+  Shield,
   Sparkles,
   Info,
   Layers
@@ -21,14 +23,17 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { compressImage } from '../../lib/imageCompression';
-import { isDriveConnected, uploadBase64ImageToDrive, connectGoogleDrive } from '../../services/googleDriveService';
+import { isDriveConnected, uploadBase64ImageToDrive } from '../../services/googleDriveService';
+import { useToast } from '../../contexts/ToastContext';
+import { PWAInstallBanner } from '../../components/ui/PWAInstallButton';
 
 export interface ZeladorDashboardProps {
   onBack?: () => void;
 }
 
 export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) => {
-  const { user } = useAuth();
+  const { user, role, isDevMaster, switchDemoRole } = useAuth();
+  const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTab, setActiveTab] = useState<'hoje' | 'pendentes' | 'em_andamento' | 'concluidas' | 'todas'>('hoje');
@@ -38,7 +43,6 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [driveConnected, setDriveConnected] = useState<boolean>(isDriveConnected());
 
   const loadTasks = async () => {
     if (!user) return;
@@ -68,20 +72,30 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
   // Action: Accept task
   const handleAcceptTask = async (task: Task) => {
     if (!user) return;
-    await DataStore.updateTaskStatus(task.id, 'ACEITA', user);
-    await loadTasks();
-    if (selectedTask?.id === task.id) {
-      setSelectedTask(prev => prev ? { ...prev, status: 'ACEITA' } : null);
+    try {
+      await DataStore.updateTaskStatus(task.id, 'ACEITA', user);
+      await loadTasks();
+      if (selectedTask?.id === task.id) {
+        setSelectedTask(prev => prev ? { ...prev, status: 'ACEITA' } : null);
+      }
+      toast.success(`Tarefa "${task.title}" aceita com sucesso!`);
+    } catch (err: any) {
+      toast.error('Erro ao aceitar tarefa: ' + (err?.message || 'Falha.'));
     }
   };
 
   // Action: Start task
   const handleStartTask = async (task: Task) => {
     if (!user) return;
-    await DataStore.updateTaskStatus(task.id, 'EM_ANDAMENTO', user);
-    await loadTasks();
-    if (selectedTask?.id === task.id) {
-      setSelectedTask(prev => prev ? { ...prev, status: 'EM_ANDAMENTO' } : null);
+    try {
+      await DataStore.updateTaskStatus(task.id, 'EM_ANDAMENTO', user);
+      await loadTasks();
+      if (selectedTask?.id === task.id) {
+        setSelectedTask(prev => prev ? { ...prev, status: 'EM_ANDAMENTO' } : null);
+      }
+      toast.info(`Execução iniciada para "${task.title}"!`);
+    } catch (err: any) {
+      toast.error('Erro ao iniciar tarefa: ' + (err?.message || 'Falha.'));
     }
   };
 
@@ -90,7 +104,7 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
     e.preventDefault();
     if (!user || !selectedTask) return;
     if (!completionDescription.trim()) {
-      alert('Por favor, descreva brevemente o serviço realizado.');
+      toast.warning('Por favor, descreva brevemente o serviço realizado.');
       return;
     }
 
@@ -126,12 +140,13 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
         });
       } catch {}
 
+      toast.success('Tarefa concluída com sucesso! Comprovante gravado.');
       setSelectedTask(null);
       setCompletionDescription('');
       setPhotoPreview(null);
       await loadTasks();
     } catch (err: any) {
-      alert(err.message || 'Erro ao concluir tarefa');
+      toast.error(err.message || 'Erro ao concluir tarefa');
     } finally {
       setIsSubmitting(false);
     }
@@ -156,17 +171,36 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
 
   return (
     <div className="w-full max-w-full sm:max-w-xl mx-auto space-y-4 pb-12 overflow-x-hidden">
-      {onBack && (
+      {/* Retorno ao painel DEV (quando em demonstração) ou retorno de filtros */}
+      {isDevMaster && role !== 'DEV' ? (
         <div className="flex items-center justify-between">
           <button
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold shadow-xs transition cursor-pointer"
+            onClick={() => {
+              switchDemoRole('DEV');
+              if (onBack) onBack();
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md transition cursor-pointer"
+            title="Retornar ao Painel do Administrador DEV"
           >
-            <ArrowRight className="w-4 h-4 rotate-180 text-slate-500" />
-            <span>Voltar ao Painel</span>
+            <ArrowLeft className="w-4 h-4 text-purple-200" />
+            <Shield className="w-4 h-4 text-amber-300" />
+            <span>Voltar ao Painel DEV</span>
           </button>
         </div>
-      )}
+      ) : activeTab !== 'hoje' ? (
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setActiveTab('hoje')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold shadow-xs transition cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-500" />
+            <span>Voltar para Tarefas de Hoje</span>
+          </button>
+        </div>
+      ) : null}
+
+      {/* PWA Install Banner para Celular do Técnico */}
+      <PWAInstallBanner />
 
       {/* Top Greeting Header (Section 13) */}
       <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white rounded-3xl p-6 shadow-md relative overflow-hidden">
@@ -480,31 +514,6 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
                               Remover
                             </button>
                           </div>
-
-                          {driveConnected || isDriveConnected() ? (
-                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-xl border border-emerald-200">
-                              <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              <span>Esta foto será arquivada no seu Google Drive corporativo.</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-between gap-1.5 text-[11px] text-blue-900 bg-blue-50 px-2.5 py-1.5 rounded-xl border border-blue-200">
-                              <span>Salvar no Google Drive na nuvem?</span>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    const res = await connectGoogleDrive();
-                                    if (res) {
-                                      setDriveConnected(true);
-                                    }
-                                  } catch {}
-                                }}
-                                className="text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer shrink-0"
-                              >
-                                Conectar Drive
-                              </button>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
