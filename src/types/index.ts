@@ -109,6 +109,7 @@ export interface Task {
   location?: string;
   notes?: string;
   recurrence?: string;
+  started_at?: string | null;
   completed_at?: string | null;
   completed_by?: string | null;
   completion_description?: string | null;
@@ -166,7 +167,7 @@ export interface AuditLog {
   action: string;
   entity_type: string;
   entity_id: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }
 

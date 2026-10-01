@@ -48,6 +48,14 @@ function AppContent() {
     if (newTab === 'demonstracao' && !isDevMaster) {
       return;
     }
+    if (newTab === 'google_drive') {
+      localStorage.setItem('profile_subtab', 'google_drive');
+      if (activeTab !== 'perfil') {
+        setTabHistory(prev => [...prev, activeTab]);
+        setActiveTab('perfil');
+      }
+      return;
+    }
     if (newTab !== activeTab) {
       setTabHistory(prev => [...prev, activeTab]);
       setActiveTab(newTab);

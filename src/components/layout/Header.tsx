@@ -314,6 +314,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     localStorage.setItem('profile_subtab', 'perfil');
+                    window.dispatchEvent(new CustomEvent('switch-profile-subtab', { detail: 'perfil' }));
                     setShowUserDropdown(false);
                     if (onSelectTab) onSelectTab('perfil');
                   }}
@@ -326,6 +327,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     localStorage.setItem('profile_subtab', 'configuracoes');
+                    window.dispatchEvent(new CustomEvent('switch-profile-subtab', { detail: 'configuracoes' }));
                     setShowUserDropdown(false);
                     if (onSelectTab) onSelectTab('perfil');
                   }}
@@ -338,13 +340,15 @@ export const Header: React.FC<HeaderProps> = ({
                 {(role === 'EMPRESA' || isDevMaster) && (
                   <button
                     onClick={() => {
+                      localStorage.setItem('profile_subtab', 'google_drive');
+                      window.dispatchEvent(new CustomEvent('switch-profile-subtab', { detail: 'google_drive' }));
                       setShowUserDropdown(false);
-                      if (onSelectTab) onSelectTab('google_drive');
+                      if (onSelectTab) onSelectTab('perfil');
                     }}
-                    className="w-full px-4 py-2.5 text-left text-xs text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-2.5 transition cursor-pointer font-medium"
+                    className="w-full px-4 py-2.5 text-left text-xs text-slate-700 hover:bg-blue-50/80 hover:text-blue-700 flex items-center gap-2.5 transition cursor-pointer font-medium"
                   >
-                    <HardDrive className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Configurar Google Drive</span>
+                    <HardDrive className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>Google Drive Corporativo</span>
                   </button>
                 )}
 

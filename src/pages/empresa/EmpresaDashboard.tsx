@@ -34,7 +34,8 @@ import {
   ShieldCheck,
   RefreshCw,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  X
 } from 'lucide-react';
 import { 
   Task, 
@@ -107,6 +108,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   // Task Filter state
   const [searchTask, setSearchTask] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todos');
+  const [dateFilter, setDateFilter] = useState<'todos' | 'hoje'>('todos');
   const [priorityFilter, setPriorityFilter] = useState<string>('todos');
   const [zeladorFilter, setZeladorFilter] = useState<string>('todos');
 
@@ -208,6 +210,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       t.description.toLowerCase().includes(searchTask.toLowerCase()) ||
       (t.location && t.location.toLowerCase().includes(searchTask.toLowerCase()));
     if (!matchSearch) return false;
+    if (dateFilter === 'hoje' && t.scheduled_date !== todayStr) return false;
     if (statusFilter !== 'todos' && t.status !== statusFilter) return false;
     if (priorityFilter !== 'todos' && t.priority !== priorityFilter) return false;
     if (zeladorFilter !== 'todos' && t.assigned_to !== zeladorFilter) return false;
@@ -601,214 +604,334 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   };
 
   const renderDashboardView = () => (
-    <div className="space-y-6 w-full max-w-full overflow-x-hidden">
-      {/* Daily PDF Report Banner */}
-      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 shadow-xs border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center shrink-0">
-            <FileText className="w-5 h-5 text-blue-400" />
-          </div>
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-white">
-              Relatórios Diários em PDF
-            </h3>
-            <p className="text-xs text-slate-300 mt-0.5">
-              Emita o demonstrativo com separação clara do que foi executado e pendências.
-            </p>
-          </div>
-        </div>
-
+    <div className="w-full max-w-full overflow-x-hidden animate-fade-in">
+      {/* Grid de Blocos Interativos (Visão Geral Operacional) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
+        {/* Bloco 1: Hoje */}
         <button
+          type="button"
+          onClick={() => {
+            setDateFilter('hoje');
+            setStatusFilter('todos');
+            setSearchTask('');
+            setPriorityFilter('todos');
+            setZeladorFilter('todos');
+            if (onSelectSubTab) onSelectSubTab('tarefas');
+          }}
+          className="group bg-white hover:bg-blue-50/40 border border-slate-200/90 hover:border-blue-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-blue-600 group-hover:text-white transition">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-blue-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-slate-900 group-hover:text-blue-600 transition tracking-tight">
+              {tasksToday.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Tarefas de Hoje</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+              Data Atual
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 2: Pendentes */}
+        <button
+          type="button"
+          onClick={() => {
+            setDateFilter('todos');
+            setStatusFilter('PENDENTE');
+            setSearchTask('');
+            setPriorityFilter('todos');
+            setZeladorFilter('todos');
+            if (onSelectSubTab) onSelectSubTab('tarefas');
+          }}
+          className="group bg-white hover:bg-amber-50/40 border border-slate-200/90 hover:border-amber-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-amber-500 group-hover:text-white transition">
+              <Clock className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-amber-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-amber-600 tracking-tight">
+              {tasksPending.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Tarefas Pendentes</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+              Fila de Execução
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 3: Em Andamento */}
+        <button
+          type="button"
+          onClick={() => {
+            setDateFilter('todos');
+            setStatusFilter('EM_ANDAMENTO');
+            setSearchTask('');
+            setPriorityFilter('todos');
+            setZeladorFilter('todos');
+            if (onSelectSubTab) onSelectSubTab('tarefas');
+          }}
+          className="group bg-white hover:bg-sky-50/40 border border-slate-200/90 hover:border-sky-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-sky-600 group-hover:text-white transition">
+              <Play className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-sky-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-sky-600 tracking-tight">
+              {tasksInProgress.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Em Andamento</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full">
+              Em Campo
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 4: Concluídas */}
+        <button
+          type="button"
+          onClick={() => {
+            setDateFilter('todos');
+            setStatusFilter('CONCLUIDA');
+            setSearchTask('');
+            setPriorityFilter('todos');
+            setZeladorFilter('todos');
+            if (onSelectSubTab) onSelectSubTab('tarefas');
+          }}
+          className="group bg-white hover:bg-emerald-50/40 border border-slate-200/90 hover:border-emerald-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-emerald-600 group-hover:text-white transition">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-emerald-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-emerald-600 tracking-tight">
+              {tasksCompleted.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Tarefas Concluídas</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+              {completionRate}% taxa
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 5: Atrasadas */}
+        <button
+          type="button"
+          onClick={() => {
+            setDateFilter('todos');
+            setStatusFilter('ATRASADA');
+            setSearchTask('');
+            setPriorityFilter('todos');
+            setZeladorFilter('todos');
+            if (onSelectSubTab) onSelectSubTab('tarefas');
+          }}
+          className="group bg-white hover:bg-rose-50/40 border border-slate-200/90 hover:border-rose-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-rose-600 group-hover:text-white transition">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-rose-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-rose-600 tracking-tight">
+              {tasksDelayed.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Tarefas Atrasadas</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full">
+              Alerta Operacional
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 6: Solicitações */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onSelectSubTab) onSelectSubTab('solicitacoes');
+          }}
+          className="group bg-white hover:bg-purple-50/40 border border-slate-200/90 hover:border-purple-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-purple-600 group-hover:text-white transition">
+              <Inbox className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-purple-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-purple-600 tracking-tight">
+              {pendingRequests.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Solicitações Prediais</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full">
+              {requests.length} Registradas
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 7: Rotinas Recorrentes */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onSelectSubTab) onSelectSubTab('rotinas');
+          }}
+          className="group bg-white hover:bg-indigo-50/40 border border-slate-200/90 hover:border-indigo-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-indigo-600 group-hover:text-white transition">
+              <Repeat className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-indigo-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-indigo-600 tracking-tight">
+              {routines.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Rotinas Recorrentes</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full">
+              {routines.filter(r => r.active).length} Ativas
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 8: Zeladores */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onSelectSubTab) onSelectSubTab('zeladores');
+          }}
+          className="group bg-white hover:bg-cyan-50/40 border border-slate-200/90 hover:border-cyan-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-700 flex items-center justify-center font-bold shadow-2xs group-hover:bg-cyan-600 group-hover:text-white transition">
+              <Users className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-cyan-700 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-cyan-700 tracking-tight">
+              {zeladores.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Zeladores em Campo</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-cyan-800 bg-cyan-50 px-2 py-0.5 rounded-full">
+              Equipe Operacional
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 9: ADM Predial */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onSelectSubTab) onSelectSubTab('adm_predial');
+          }}
+          className="group bg-white hover:bg-slate-100/60 border border-slate-200/90 hover:border-slate-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold shadow-2xs group-hover:bg-slate-800 group-hover:text-white transition">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-slate-800 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-slate-800 tracking-tight">
+              {adms.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">ADM Predial / Síndicos</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
+              Condomínios
+            </span>
+          </div>
+        </button>
+
+        {/* Bloco 10: Relatórios */}
+        <button
+          type="button"
           onClick={() => {
             if (onSelectSubTab) onSelectSubTab('relatorios');
           }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-xs shrink-0 cursor-pointer self-start sm:self-auto"
+          className="group bg-white hover:bg-teal-50/40 border border-slate-200/90 hover:border-teal-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
         >
-          <FileText className="w-4 h-4" />
-          <span>Acessar Relatórios</span>
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold shadow-2xs group-hover:bg-teal-600 group-hover:text-white transition">
+              <FileText className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-teal-600 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-teal-600 tracking-tight">
+              {tasksCompleted.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Relatórios & Laudos</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+              PDF com Fotos
+            </span>
+          </div>
         </button>
       </div>
-
-      {/* 6 Top Metric Cards (Section 11) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Hoje</span>
-            <Calendar className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="text-2xl font-black text-slate-800 mt-1">{tasksToday.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Tarefas agendadas</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-amber-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Pendentes</span>
-            <Clock className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-black text-amber-600 mt-1">{tasksPending.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Aguardando início</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-blue-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Em Andamento</span>
-            <Play className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-black text-blue-600 mt-1">{tasksInProgress.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Sendo executadas</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-emerald-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Concluídas</span>
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-black text-emerald-600 mt-1">{tasksCompleted.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">{completionRate}% taxa conclusão</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-rose-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Atrasadas</span>
-            <AlertTriangle className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-black text-rose-600 mt-1">{tasksDelayed.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Requerem atenção</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs">
-          <div className="flex items-center justify-between text-purple-500">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-purple-700">Solicitações</span>
-            <Inbox className="w-4 h-4" />
-          </div>
-          <div className="text-2xl font-black text-purple-600 mt-1">{pendingRequests.length}</div>
-          <div className="text-[10px] text-slate-400 mt-1">Do ADM Predial</div>
-        </div>
-      </div>
-
-      {/* Visual Progress & Janitor Distribution Charts (Section 11) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Status Distribution */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Status das Tarefas</h4>
-            <span className="text-xs font-semibold text-blue-600">{tasks.length} total</span>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs text-slate-600 mb-1">
-                <span>Concluídas</span>
-                <span className="font-bold text-emerald-600">{tasksCompleted.length}</span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
-                  style={{ width: `${tasks.length ? (tasksCompleted.length / tasks.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs text-slate-600 mb-1">
-                <span>Em Andamento</span>
-                <span className="font-bold text-blue-600">{tasksInProgress.length}</span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-blue-500 rounded-full transition-all duration-500" 
-                  style={{ width: `${tasks.length ? (tasksInProgress.length / tasks.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs text-slate-600 mb-1">
-                <span>Pendentes</span>
-                <span className="font-bold text-amber-600">{tasksPending.length}</span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-amber-500 rounded-full transition-all duration-500" 
-                  style={{ width: `${tasks.length ? (tasksPending.length / tasks.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between text-xs text-slate-600 mb-1">
-                <span>Atrasadas</span>
-                <span className="font-bold text-rose-600">{tasksDelayed.length}</span>
-              </div>
-              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-rose-500 rounded-full transition-all duration-500" 
-                  style={{ width: `${tasks.length ? (tasksDelayed.length / tasks.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Janitor Workload */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Carga de Trabalho por Zelador</h4>
-            <span className="text-xs text-slate-500">{zeladores.length} zelador(es) ativos</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {zeladores.map(z => {
-              const count = tasks.filter(t => t.assigned_to === z.id && t.status !== 'CONCLUIDA' && t.status !== 'CANCELADA').length;
-              const doneCount = tasks.filter(t => t.assigned_to === z.id && t.status === 'CONCLUIDA').length;
-              return (
-                <div key={z.id} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/60 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                      {z.name.slice(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <div className="font-bold text-xs text-slate-800">{z.name}</div>
-                      <div className="text-[11px] text-slate-400">Matrícula: {z.badge_number || 'S/N'}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold text-blue-600">{count} ativas</div>
-                    <div className="text-[10px] text-emerald-600 font-medium">{doneCount} concluídas</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Action Buttons */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900 text-white rounded-2xl p-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-blue-400" />
-          <span className="text-xs font-semibold">Rotinas Programadas e Automações:</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleGenerateTasksFromRoutines}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-sm"
-          >
-            <Repeat className="w-3.5 h-3.5" />
-            <span>Gerar Tarefas das Rotinas</span>
-          </button>
-          <button
-            onClick={() => setShowTaskModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition border border-slate-700"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Nova Tarefa Avulsa</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Filterable Tasks Table */}
-      {renderTasksTable(5)}
     </div>
   );
 
@@ -819,14 +942,73 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
         {/* Table Filters (Section 20 & 27) */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">
-              {limit ? 'Últimas Tarefas Operacionais' : 'Gestão Geral de Tarefas'}
-            </h3>
-            <p className="text-xs text-slate-500">Acompanhamento em tempo real da equipe de zeladoria.</p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilter('todos');
+                setStatusFilter('todos');
+                if (onSelectSubTab) onSelectSubTab('dashboard');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0"
+              title="Voltar aos Blocos da Visão Geral"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Voltar aos Blocos</span>
+            </button>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-slate-800">
+                  {limit ? 'Últimas Tarefas Operacionais' : 'Gestão Geral de Tarefas'}
+                </h3>
+                {dateFilter === 'hoje' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    <Calendar className="w-3 h-3 text-blue-600" />
+                    Filtrando: Hoje
+                    <button
+                      type="button"
+                      onClick={() => setDateFilter('todos')}
+                      className="ml-1 hover:text-blue-950 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+                {statusFilter !== 'todos' && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    Status: {statusFilter}
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter('todos')}
+                      className="ml-1 hover:text-amber-950 cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {(dateFilter !== 'todos' || statusFilter !== 'todos' || searchTask || priorityFilter !== 'todos' || zeladorFilter !== 'todos') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilter('todos');
+                  setStatusFilter('todos');
+                  setSearchTask('');
+                  setPriorityFilter('todos');
+                  setZeladorFilter('todos');
+                }}
+                className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 transition cursor-pointer flex items-center gap-1"
+                title="Limpar todos os filtros"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Limpar Filtros</span>
+              </button>
+            )}
+
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -978,14 +1160,18 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
 
   const renderRoutinesView = () => (
     <div className="space-y-5">
-      <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-        <div>
-          <h3 className="text-base font-bold text-slate-800">Rotinas Periódicas de Zeladoria</h3>
-          <p className="text-xs text-slate-500">
-            Configure limpezas e inspeções recorrentes (diárias, semanais, mensais). O sistema gera as tarefas automaticamente.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <h3 className="text-base font-bold text-slate-800">Rotinas Periódicas de Zeladoria</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
+            title="Voltar aos Blocos da Visão Geral"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Voltar aos Blocos</span>
+          </button>
           <button
             onClick={handleGenerateTasksFromRoutines}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-sm cursor-pointer"
@@ -1094,11 +1280,17 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
 
   const renderRequestsView = () => (
     <div className="space-y-5">
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h3 className="text-base font-bold text-slate-800">Solicitações dos Administradores Prediais</h3>
-        <p className="text-xs text-slate-500">
-          Analise e aprove as demandas enviadas pelos síndicos e ADMs para conversão em tarefas executáveis.
-        </p>
+        <button
+          type="button"
+          onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0 self-start sm:self-auto"
+          title="Voltar aos Blocos da Visão Geral"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar aos Blocos</span>
+        </button>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
@@ -1178,20 +1370,26 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
 
     return (
       <div className="space-y-5 w-full max-w-full overflow-x-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">{title}</h3>
-            <p className="text-xs text-slate-500">
-              Controle de usuários credenciados com autenticação segura e controle de acesso RBAC.
-            </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+          <h3 className="text-base font-bold text-slate-800">{title}</h3>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
+              title="Voltar aos Blocos da Visão Geral"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Voltar aos Blocos</span>
+            </button>
+            <button
+              onClick={() => handleOpenCreateUser(roleType)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>Cadastrar {roleType === 'ZELADOR' ? 'Zelador' : 'ADM'}</span>
+            </button>
           </div>
-          <button
-            onClick={() => handleOpenCreateUser(roleType)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs self-start sm:self-auto shrink-0 cursor-pointer"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Cadastrar {roleType === 'ZELADOR' ? 'Zelador' : 'ADM'}</span>
-          </button>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
@@ -1270,6 +1468,19 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
 
   const renderReportsView = () => (
     <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+        <h3 className="text-base font-bold text-slate-800">Relatórios & Demonstrativos Diários</h3>
+        <button
+          type="button"
+          onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 shrink-0 self-start sm:self-auto"
+          title="Voltar aos Blocos da Visão Geral"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar aos Blocos</span>
+        </button>
+      </div>
+
       {/* Official Daily PDF Report Generator Component */}
       <DailyReportManager
         tasks={tasks}
@@ -1284,10 +1495,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       {/* General Metrics & CSV Section */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-800">Métricas Gerais & Exportação em Planilha</h3>
-            <p className="text-xs text-slate-500">Métricas consolidadas de todas as tarefas e exportação bruta em formato CSV.</p>
-          </div>
+          <h3 className="text-base font-bold text-slate-800">Métricas Gerais & Exportação em Planilha</h3>
           <button
             onClick={handleExportCSV}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer"
@@ -1327,352 +1535,177 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   );
 
   const renderGoogleDriveView = () => (
-    <div className="space-y-6 w-full max-w-full overflow-x-hidden animate-fade-in">
-      {/* Top Banner / Privacy Alert */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-800 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">
-            <HardDrive className="w-4 h-4" />
-            <span>Módulo Exclusivo da Gerência</span>
-          </div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
-            <span>Google Drive Corporativo da Empresa</span>
-          </h2>
-          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-            Centralize todos os relatórios em PDF e comprovantes fotográficos de zeladoria na conta Google oficial da{' '}
-            <strong className="text-white font-bold">{company?.trade_name || 'CAST Serviços Técnicos'}</strong>. 
-            Esta área de configuração e conexão é restrita exclusivamente ao gerente da empresa.
-          </p>
-        </div>
+    <div className="max-w-2xl mx-auto space-y-4 w-full overflow-x-hidden animate-fade-in">
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Voltar aos Blocos</span>
+        </button>
 
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
-          <button
-            type="button"
-            onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition shadow-xs cursor-pointer border border-slate-700"
+        {company?.google_drive_folder_url && (
+          <a
+            href={company.google_drive_folder_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-xs text-blue-600 hover:underline font-semibold"
           >
-            <ArrowRight className="w-4 h-4 rotate-180" />
-            <span>Voltar ao Dashboard</span>
-          </button>
-          {company?.google_drive_folder_url && (
-            <a
-              href={company.google_drive_folder_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span>Abrir Pasta no Google Drive</span>
-            </a>
-          )}
-        </div>
+            <span>Abrir Pasta no Drive</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
       </div>
 
-      {/* Security Privacy Notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-blue-900">
-        <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <span className="font-bold block text-blue-950">Privacidade & Controle de Acesso Restrito</span>
-          <p className="leading-relaxed">
-            Nenhum outro usuário (zeladores em campo, síndicos ou administradores prediais) possui acesso a esta tela ou aos dados de conexão do Google Drive. Todas as imagens e relatórios são salvos de forma centralizada na pasta da empresa definida aqui.
-          </p>
-        </div>
-      </div>
-
-      {/* Feedback Messages */}
-      {driveTestMessage && (
-        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between gap-3 border animate-fade-in ${
-          driveTestMessage.type === 'success' 
-            ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
-            : 'bg-rose-50 text-rose-900 border-rose-200'
-        }`}>
-          <div className="flex items-center gap-2">
-            {driveTestMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            <span>{driveTestMessage.text}</span>
+      {/* Card: Cadastro do Google Drive */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <Folder className="w-5 h-5 text-blue-600" />
+            <h3 className="text-sm font-bold text-slate-800">Cadastro do Google Drive</h3>
           </div>
-          <button 
-            onClick={() => setDriveTestMessage(null)}
-            className="text-slate-400 hover:text-slate-700 text-xs font-bold cursor-pointer"
-          >
-            ✕
-          </button>
+          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+            isDriveAuthConnected 
+              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+              : 'bg-slate-100 text-slate-600 border border-slate-200'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${isDriveAuthConnected ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+            {isDriveAuthConnected ? 'Conectado' : 'Desconectado'}
+          </span>
         </div>
-      )}
 
-      {driveConfigSaved && (
-        <div className="p-4 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>Configurações do Google Drive da Empresa salvas com sucesso!</span>
-        </div>
-      )}
-
-      {/* Two Column Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Card 1: Conexão e Autenticação Google Workspace */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-5">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
-                  <HardDrive className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800">Status da Autenticação Google</h3>
-                  <p className="text-[11px] text-slate-400">Conexão oficial da empresa com a API do Google Workspace</p>
-                </div>
-              </div>
-
-              {isDriveAuthConnected ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Conectado
-                </span>
+        {driveTestMessage && (
+          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 border ${
+            driveTestMessage.type === 'success' 
+              ? 'bg-emerald-50 text-emerald-900 border-emerald-200' 
+              : 'bg-rose-50 text-rose-900 border-rose-200'
+          }`}>
+            <div className="flex items-center gap-1.5">
+              {driveTestMessage.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                  Desconectado
-                </span>
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               )}
+              <span>{driveTestMessage.text}</span>
             </div>
+            <button 
+              type="button"
+              onClick={() => setDriveTestMessage(null)}
+              className="text-slate-400 hover:text-slate-700 font-bold"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
-            <div className="space-y-3 text-xs">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                <div className="flex justify-between items-center text-slate-600">
-                  <span>Conta Google da Empresa:</span>
-                  <strong className="text-slate-900 font-semibold">{company?.google_drive_email || driveEmail || 'empresa@cast.com'}</strong>
-                </div>
-                <div className="flex justify-between items-center text-slate-600">
-                  <span>Status do Token de Sessão:</span>
-                  <span className={`font-bold ${isDriveAuthConnected ? 'text-emerald-600' : 'text-slate-500'}`}>
-                    {isDriveAuthConnected ? 'Ativo e Autorizado' : 'Não autenticado'}
-                  </span>
-                </div>
-                {company?.google_drive_connected_at && (
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Última conexão:</span>
-                    <span className="text-slate-700">{new Date(company.google_drive_connected_at).toLocaleString('pt-BR')}</span>
-                  </div>
-                )}
-              </div>
+        {driveConfigSaved && (
+          <div className="p-3 bg-emerald-50 text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Configurações salvas com sucesso!</span>
+          </div>
+        )}
 
-              <p className="text-slate-500 text-[11px] leading-relaxed">
-                Ao conectar, o sistema solicita autorização para salvar e gerenciar arquivos de relatórios na conta da sua empresa sem expor chaves ou senhas em ambiente local.
-              </p>
-            </div>
+        <form onSubmit={handleSaveDriveConfig} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              E-mail Oficial no Google *
+            </label>
+            <input
+              type="email"
+              required
+              value={driveEmail}
+              onChange={(e) => setDriveEmail(e.target.value.toLowerCase())}
+              placeholder="empresa@cast.com"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
           </div>
 
-          <div className="pt-4 border-t border-slate-100 flex flex-wrap gap-2.5">
-            {isDriveAuthConnected ? (
-              <>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Nome da Pasta no Drive *
+            </label>
+            <input
+              type="text"
+              required
+              value={driveFolderName}
+              onChange={(e) => setDriveFolderName(e.target.value)}
+              placeholder="Ex: CAST - Documentos e Relatórios"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Link ou ID da Pasta no Drive (Opcional)
+            </label>
+            <input
+              type="text"
+              value={driveFolderUrl}
+              onChange={(e) => {
+                const url = e.target.value;
+                setDriveFolderUrl(url);
+                const extracted = extractDriveFolderId(url);
+                if (extracted && extracted !== url) {
+                  setDriveFolderId(extracted);
+                }
+              }}
+              placeholder="https://drive.google.com/drive/folders/..."
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2">
+              {isDriveAuthConnected ? (
+                <button
+                  type="button"
+                  onClick={handleDisconnectDrive}
+                  className="px-3 py-2 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Desconectar</span>
+                </button>
+              ) : (
                 <button
                   type="button"
                   onClick={handleConnectDrive}
                   disabled={isConnectingDrive}
-                  className="flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                 >
-                  {isConnectingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  <span>Reconectar / Trocar Conta</span>
+                  {isConnectingDrive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CloudUpload className="w-3.5 h-3.5" />}
+                  <span>Conectar Conta Google</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleDisconnectDrive}
-                  className="py-2.5 px-4 bg-slate-100 hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-200 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span>Desconectar</span>
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={handleConnectDrive}
-                disabled={isConnectingDrive}
-                className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-blue-600/20 disabled:opacity-50"
-              >
-                {isConnectingDrive ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudUpload className="w-4 h-4" />}
-                <span>Conectar Conta Google da Empresa</span>
-              </button>
-            )}
-          </div>
-        </div>
+              )}
 
-        {/* Card 2: Cadastro & Configurações da Pasta no Drive */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-5">
-          <form onSubmit={handleSaveDriveConfig} className="space-y-4">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
-                <Folder className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Cadastro da Pasta do Google Drive</h3>
-                <p className="text-[11px] text-slate-400">Identificação e localização da pasta corporativa de destino</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  E-mail Oficial da Empresa no Google *
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={driveEmail}
-                  onChange={(e) => setDriveEmail(e.target.value.toLowerCase())}
-                  placeholder="empresa@cast.com"
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nome da Pasta Oficial no Drive *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={driveFolderName}
-                  onChange={(e) => setDriveFolderName(e.target.value)}
-                  placeholder="Ex: CAST - Documentos e Relatórios de Zeladoria"
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Link Compartilhado ou URL da Pasta no Google Drive (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={driveFolderUrl}
-                  onChange={(e) => {
-                    const url = e.target.value;
-                    setDriveFolderUrl(url);
-                    const extracted = extractDriveFolderId(url);
-                    if (extracted && extracted !== url) {
-                      setDriveFolderId(extracted);
-                    }
-                  }}
-                  placeholder="https://drive.google.com/drive/folders/..."
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
-                />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  Cole o link gerado pelo Google Drive. O ID da pasta será detectado automaticamente.
-                </span>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  ID da Pasta no Drive (Opcional)
-                </label>
-                <input
-                  type="text"
-                  value={driveFolderId}
-                  onChange={(e) => setDriveFolderId(e.target.value.trim())}
-                  placeholder="Ex: 1a2b3c4d5e6f7g8h9i0j"
-                  className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleTestDrive}
                 disabled={isTestingDrive}
-                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                title="Testar acesso e verificar a pasta no Google Drive"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                {isTestingDrive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-blue-600" />}
-                <span>{isTestingDrive ? 'Testando...' : 'Testar Conexão'}</span>
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSavingDriveConfig}
-                className="py-2.5 px-5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isSavingDriveConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>Salvar Cadastro do Drive</span>
+                {isTestingDrive ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <span>Testar Conexão</span>
               </button>
             </div>
-          </form>
-        </div>
-      </div>
 
-      {/* Card 3: Fluxo de Funcionamento e Informações Técnicas */}
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs">
-        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Como funciona a integração com o Google Drive da empresa</span>
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
-              Relatórios Diários em PDF
-            </span>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              Ao gerar um relatório no módulo de relatórios, o botão &quot;Salvar no Google Drive&quot; envia o arquivo PDF formatado diretamente para a pasta oficial da empresa.
-            </p>
+            <button
+              type="submit"
+              disabled={isSavingDriveConfig}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isSavingDriveConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              <span>Salvar Cadastro</span>
+            </button>
           </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
-              Fotos Comprovatórias de Campo
-            </span>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              Os zeladores registram o antes e depois das tarefas. Essas fotos são arquivadas na subpasta de comprovantes no Drive corporativo da empresa de forma transparente.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5">
-            <span className="font-bold text-slate-900 flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
-              Sem Exposição de Credenciais
-            </span>
-            <p className="text-slate-600 leading-relaxed text-[11px]">
-              O acesso aos arquivos é mantido exclusivamente sob controle da empresa prestadora e do síndico por relatórios, garantindo a privacidade das imagens e dos registros prediais.
-            </p>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-x-hidden">
-      {/* Sub-Tabs Selector */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto">
-        {[
-          { id: 'dashboard', label: 'Visão Geral' },
-          { id: 'tarefas', label: `Tarefas (${tasks.length})` },
-          { id: 'rotinas', label: `Rotinas Recorrentes (${routines.length})` },
-          { id: 'solicitacoes', label: `Solicitações (${pendingRequests.length} pendentes)` },
-          { id: 'zeladores', label: `Zeladores (${zeladores.length})` },
-          { id: 'adm_predial', label: `ADM Predial (${adms.length})` },
-          { id: 'relatorios', label: 'Relatórios & Exportação' },
-          { id: 'google_drive', label: 'Google Drive Corporativo' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => onSelectSubTab && onSelectSubTab(tab.id)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-              activeSubTab === tab.id
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Render selected view */}
       {activeSubTab === 'dashboard' && renderDashboardView()}
       {activeSubTab === 'tarefas' && renderTasksTable()}

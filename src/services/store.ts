@@ -72,6 +72,26 @@ export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 30
   return Promise.race([promise, timeoutPromise]).finally(() => clearTimeout(timer));
 }
 
+// Verifica se o Firestore está configurado e em ambiente de navegador com suporte ativo a rede
+const isFirestoreActive = isFirebaseConfigured && typeof window !== 'undefined';
+
+/**
+ * Remove valores 'undefined' que causam erro fatal no Firestore (Function setDoc called with invalid data)
+ */
+function sanitizeForFirestore<T extends Record<string, any>>(obj: T): T {
+  const cleaned: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === undefined) {
+      cleaned[key] = null;
+    } else if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+      cleaned[key] = sanitizeForFirestore(value as Record<string, any>);
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
 export class DataStore {
   private static isInitialized = false;
 
@@ -100,7 +120,7 @@ export class DataStore {
       setLocal(KEYS.PROFILES, cleanedLocal);
 
       // 2. Limpeza e sincronização no Firestore (se configurado)
-      if (isFirebaseConfigured) {
+      if (isFirestoreActive) {
         try {
           const snap = await withTimeout(getDocs(collection(db, 'profiles')), 4000);
           if (!snap.empty) {
@@ -144,7 +164,7 @@ export class DataStore {
    * independentemente de código ou recarregamentos.
    */
   static async seedFirestoreIfEmpty(): Promise<void> {
-    if (!isFirebaseConfigured || this.isInitialized) return;
+    if (!isFirestoreActive || this.isInitialized) return;
     this.isInitialized = true;
 
     try {
@@ -232,15 +252,15 @@ export class DataStore {
       action,
       entity_type,
       entity_id,
-      metadata,
+      metadata: metadata || null,
       created_at: new Date().toISOString(),
     };
 
     setLocal(KEYS.AUDIT, [newLog, ...logs]);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'audit_logs', newLog.id), newLog);
+        await withTimeout(setDoc(doc(db, 'audit_logs', newLog.id), sanitizeForFirestore(newLog)), 2000);
       } catch (err) {
         console.warn('Erro ao salvar audit log no Firestore:', err);
       }
@@ -249,7 +269,7 @@ export class DataStore {
 
   // ---- NOTIFICATIONS ----
   static async getNotifications(userId: string): Promise<Notification[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         const q = query(
           collection(db, 'notifications'), 
@@ -291,7 +311,7 @@ export class DataStore {
     };
     setLocal(KEYS.NOTIFICATIONS, [newNotif, ...all]);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await setDoc(doc(db, 'notifications', newNotif.id), newNotif);
       } catch (err) {
@@ -305,7 +325,7 @@ export class DataStore {
     const updated = all.map(n => n.id === id ? { ...n, read: true } : n);
     setLocal(KEYS.NOTIFICATIONS, updated);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'notifications', id), { read: true });
       } catch (err) {
@@ -321,7 +341,7 @@ export class DataStore {
   }
 
   static async getCompanies(): Promise<Company[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         const snap = await withTimeout(getDocs(collection(db, 'companies')), 3000);
         if (!snap.empty) {
@@ -347,16 +367,17 @@ export class DataStore {
       updated_at: new Date().toISOString(),
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<Company[]>(KEYS.COMPANIES, initialCompanies);
+    setLocal(KEYS.COMPANIES, [newComp, ...list]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'companies', newComp.id), newComp);
+        await withTimeout(setDoc(doc(db, 'companies', newComp.id), newComp), 2000);
       } catch (e) {
         console.warn('Erro ao inserir company no Firestore, mantendo em cache local:', e);
       }
     }
 
-    const list = getLocal<Company[]>(KEYS.COMPANIES, initialCompanies);
-    setLocal(KEYS.COMPANIES, [newComp, ...list]);
     await DataStore.logAction(actor, 'criação de empresa', 'company', newComp.id);
     return newComp;
   }
@@ -366,7 +387,7 @@ export class DataStore {
     const updatedList = list.map(c => c.id === id ? { ...c, ...updates, updated_at: new Date().toISOString() } : c);
     setLocal(KEYS.COMPANIES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'companies', id), { ...updates, updated_at: new Date().toISOString() });
       } catch (e) {
@@ -384,7 +405,7 @@ export class DataStore {
     const updatedList = list.map(c => c.id === id ? { ...c, deleted_at: new Date().toISOString(), status: 'Inativa' as const } : c);
     setLocal(KEYS.COMPANIES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'companies', id), {
           deleted_at: new Date().toISOString(),
@@ -406,7 +427,7 @@ export class DataStore {
   }
 
   static async getProperties(companyId: string): Promise<Property[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         const q = query(collection(db, 'properties'), where('company_id', '==', companyId));
         const snap = await withTimeout(getDocs(q), 3000);
@@ -430,16 +451,17 @@ export class DataStore {
       updated_at: new Date().toISOString(),
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<Property[]>(KEYS.PROPERTIES, initialProperties);
+    setLocal(KEYS.PROPERTIES, [...list, newProp]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'properties', newProp.id), newProp);
+        await withTimeout(setDoc(doc(db, 'properties', newProp.id), newProp), 2000);
       } catch (err) {
         console.warn('Erro ao salvar property no Firestore:', err);
       }
     }
 
-    const list = getLocal<Property[]>(KEYS.PROPERTIES, initialProperties);
-    setLocal(KEYS.PROPERTIES, [...list, newProp]);
     await DataStore.logAction(actor, 'criação de empreendimento', 'property', newProp.id);
     return newProp;
   }
@@ -455,7 +477,7 @@ export class DataStore {
   }
 
   static async getProfiles(companyId?: string, roleFilter?: UserRole): Promise<Profile[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         let q = query(collection(db, 'profiles'));
         if (companyId) {
@@ -492,16 +514,17 @@ export class DataStore {
       updated_at: new Date().toISOString(),
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles);
+    setLocal(KEYS.PROFILES, [...list, newProf]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'profiles', newProf.id), newProf);
+        await withTimeout(setDoc(doc(db, 'profiles', newProf.id), newProf), 2000);
       } catch (err) {
         console.warn('Erro ao salvar profile no Firestore:', err);
       }
     }
 
-    const list = getLocal<Profile[]>(KEYS.PROFILES, initialProfiles);
-    setLocal(KEYS.PROFILES, [...list, newProf]);
     await DataStore.logAction(actor, `criação de usuário ${profileData.role}`, 'profile', newProf.id);
     return newProf;
   }
@@ -511,7 +534,7 @@ export class DataStore {
     const updatedList = list.map(p => p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p);
     setLocal(KEYS.PROFILES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'profiles', id), { ...updates, updated_at: new Date().toISOString() });
       } catch (err) {
@@ -538,7 +561,7 @@ export class DataStore {
     } : p);
     setLocal(KEYS.PROFILES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'profiles', profileId), {
           password: newPassword,
@@ -563,7 +586,7 @@ export class DataStore {
     const updatedList = list.map(p => p.id === id ? { ...p, deleted_at: new Date().toISOString(), status: 'Inativo' as const } : p);
     setLocal(KEYS.PROFILES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'profiles', id), {
           deleted_at: new Date().toISOString(),
@@ -579,7 +602,7 @@ export class DataStore {
 
   // ---- TASKS (MULTI-TENANT & ROLE-AWARE) ----
   static async getTasks(user: Profile): Promise<Task[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         let q = query(collection(db, 'tasks'));
         if (user.role === 'EMPRESA' && user.company_id) {
@@ -640,16 +663,16 @@ export class DataStore {
       photos: taskData.photos || [],
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<Task[]>(KEYS.TASKS, initialTasks);
+    setLocal(KEYS.TASKS, [newTask, ...list]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'tasks', newTask.id), newTask);
+        await withTimeout(setDoc(doc(db, 'tasks', newTask.id), newTask), 2000);
       } catch (err) {
         console.warn('Erro ao salvar task no Firestore:', err);
       }
     }
-
-    const list = getLocal<Task[]>(KEYS.TASKS, initialTasks);
-    setLocal(KEYS.TASKS, [newTask, ...list]);
 
     await DataStore.logAction(actor, `criação de tarefa: "${newTask.title}"`, 'task', newTask.id);
 
@@ -677,21 +700,26 @@ export class DataStore {
       throw new Error('Esta tarefa já foi concluída e está bloqueada contra alterações.');
     }
 
+    const updatesWithTimestamps: Partial<Task> = { ...updates };
+    if (updates.status === 'EM_ANDAMENTO' && !existing.started_at) {
+      updatesWithTimestamps.started_at = new Date().toISOString();
+    }
+
     const updatedTask: Task = {
       ...existing,
-      ...updates,
+      ...updatesWithTimestamps,
       updated_at: new Date().toISOString(),
     };
 
     const updatedList = list.map(t => t.id === id ? updatedTask : t);
     setLocal(KEYS.TASKS, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
-        await updateDoc(doc(db, 'tasks', id), {
-          ...updates,
+        await withTimeout(updateDoc(doc(db, 'tasks', id), sanitizeForFirestore({
+          ...updatesWithTimestamps,
           updated_at: new Date().toISOString(),
-        });
+        })), 2000);
       } catch (err) {
         console.warn('Erro ao atualizar task no Firestore:', err);
       }
@@ -703,12 +731,26 @@ export class DataStore {
 
   static async completeTask(
     id: string, 
-    completionDescription: string, 
-    photoUrls: string[], 
-    actor: Profile
+    completionData: string | { completion_description?: string; completion_notes?: string; photos_after?: string[] }, 
+    photoUrlsOrActor: string[] | Profile, 
+    actorMaybe?: Profile
   ): Promise<Task> {
-    if (!completionDescription.trim()) {
-      throw new Error('A descrição do serviço executado é obrigatória para conclusão.');
+    let completionDescription = '';
+    let photoUrls: string[] = [];
+    let actor: Profile;
+
+    if (typeof completionData === 'object' && completionData !== null) {
+      completionDescription = completionData.completion_description || completionData.completion_notes || 'Serviço concluído pelo zelador.';
+      photoUrls = completionData.photos_after || [];
+      actor = photoUrlsOrActor as Profile;
+    } else {
+      completionDescription = completionData || 'Serviço concluído pelo zelador.';
+      photoUrls = (photoUrlsOrActor as string[]) || [];
+      actor = actorMaybe as Profile;
+    }
+
+    if (!completionDescription || !completionDescription.trim()) {
+      completionDescription = 'Serviço concluído pelo zelador.';
     }
 
     const list = getLocal<Task[]>(KEYS.TASKS, initialTasks);
@@ -733,7 +775,7 @@ export class DataStore {
       id: `photo-${Date.now()}-${i}`,
       task_id: id,
       storage_path: url,
-      uploaded_by: actor.id,
+      uploaded_by: actor?.id || existing.assigned_to || 'system',
       created_at: new Date().toISOString(),
     }));
 
@@ -741,7 +783,7 @@ export class DataStore {
       ...existing,
       status: 'CONCLUIDA',
       completed_at: new Date().toISOString(),
-      completed_by: actor.id,
+      completed_by: actor?.id || existing.assigned_to,
       completion_description: completionDescription,
       photos: [...(existing.photos || []), ...newPhotos],
       updated_at: new Date().toISOString(),
@@ -750,22 +792,24 @@ export class DataStore {
     const updatedList = list.map(t => t.id === id ? updatedTask : t);
     setLocal(KEYS.TASKS, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
-        await updateDoc(doc(db, 'tasks', id), {
+        await withTimeout(updateDoc(doc(db, 'tasks', id), sanitizeForFirestore({
           status: 'CONCLUIDA',
           completed_at: updatedTask.completed_at,
-          completed_by: actor.id,
-          completion_description: completionDescription,
+          completed_by: updatedTask.completed_by || null,
+          completion_description: updatedTask.completion_description,
           photos: updatedTask.photos,
           updated_at: updatedTask.updated_at,
-        });
+        })), 2000);
       } catch (err) {
         console.warn('Erro ao concluir task no Firestore:', err);
       }
     }
 
-    await DataStore.logAction(actor, `conclusão de tarefa com ${photoUrls.length} foto(s)`, 'task', id);
+    if (actor) {
+      await DataStore.logAction(actor, `conclusão de tarefa com ${photoUrls.length} foto(s)`, 'task', id);
+    }
     return updatedTask;
   }
 
@@ -774,11 +818,11 @@ export class DataStore {
     const updatedList = list.map(t => t.id === id ? { ...t, deleted_at: new Date().toISOString() } : t);
     setLocal(KEYS.TASKS, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
-        await updateDoc(doc(db, 'tasks', id), {
+        await withTimeout(updateDoc(doc(db, 'tasks', id), {
           deleted_at: new Date().toISOString()
-        });
+        }), 2000);
       } catch (err) {
         console.warn('Erro ao excluir task no Firestore:', err);
       }
@@ -801,12 +845,18 @@ export class DataStore {
         actor
       );
     }
+    if (newStatus === 'EM_ANDAMENTO') {
+      return DataStore.updateTask(id, { 
+        status: 'EM_ANDAMENTO',
+        started_at: new Date().toISOString()
+      }, actor);
+    }
     return DataStore.updateTask(id, { status: newStatus }, actor);
   }
 
   // ---- ROUTINES ----
   static async getRoutines(companyId: string): Promise<Routine[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         const q = query(collection(db, 'routines'), where('company_id', '==', companyId));
         const snap = await withTimeout(getDocs(q), 3000);
@@ -829,16 +879,16 @@ export class DataStore {
       updated_at: new Date().toISOString(),
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<Routine[]>(KEYS.ROUTINES, initialRoutines);
+    setLocal(KEYS.ROUTINES, [newRoutine, ...list]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'routines', newRoutine.id), newRoutine);
+        await withTimeout(setDoc(doc(db, 'routines', newRoutine.id), newRoutine), 2000);
       } catch (err) {
         console.warn('Erro ao salvar rotina no Firestore:', err);
       }
     }
-
-    const list = getLocal<Routine[]>(KEYS.ROUTINES, initialRoutines);
-    setLocal(KEYS.ROUTINES, [newRoutine, ...list]);
     await DataStore.logAction(actor, `criação de rotina: ${newRoutine.name}`, 'routine', newRoutine.id);
     return newRoutine;
   }
@@ -848,7 +898,7 @@ export class DataStore {
     const updatedList = list.map(r => r.id === id ? { ...r, active, updated_at: new Date().toISOString() } : r);
     setLocal(KEYS.ROUTINES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'routines', id), { active, updated_at: new Date().toISOString() });
       } catch (err) {
@@ -865,7 +915,7 @@ export class DataStore {
     const updatedList = list.map(r => r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r);
     setLocal(KEYS.ROUTINES, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'routines', id), { ...updates, updated_at: new Date().toISOString() });
       } catch (err) {
@@ -883,7 +933,7 @@ export class DataStore {
     const filtered = list.filter(r => r.id !== id);
     setLocal(KEYS.ROUTINES, filtered);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await deleteDoc(doc(db, 'routines', id));
       } catch (err) {
@@ -896,7 +946,7 @@ export class DataStore {
 
   // ---- TASK REQUESTS (ADM_PREDIAL) ----
   static async getRequests(companyId?: string, propertyId?: string): Promise<TaskRequest[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         let q = query(collection(db, 'task_requests'));
         if (companyId) {
@@ -934,16 +984,16 @@ export class DataStore {
       updated_at: new Date().toISOString(),
     };
 
-    if (isFirebaseConfigured) {
+    const list = getLocal<TaskRequest[]>(KEYS.REQUESTS, initialRequests);
+    setLocal(KEYS.REQUESTS, [newReq, ...list]);
+
+    if (isFirestoreActive) {
       try {
-        await setDoc(doc(db, 'task_requests', newReq.id), newReq);
+        await withTimeout(setDoc(doc(db, 'task_requests', newReq.id), newReq), 2000);
       } catch (err) {
         console.warn('Erro ao salvar task_request no Firestore:', err);
       }
     }
-
-    const list = getLocal<TaskRequest[]>(KEYS.REQUESTS, initialRequests);
-    setLocal(KEYS.REQUESTS, [newReq, ...list]);
     await DataStore.logAction(actor, `abertura de solicitação: "${newReq.title}"`, 'request', newReq.id);
     return newReq;
   }
@@ -953,7 +1003,7 @@ export class DataStore {
     const updatedList = list.map(r => r.id === id ? { ...r, ...updates, updated_at: new Date().toISOString() } : r);
     setLocal(KEYS.REQUESTS, updatedList);
 
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         await updateDoc(doc(db, 'task_requests', id), {
           ...updates,
@@ -1041,8 +1091,31 @@ export class DataStore {
     const activeRoutines = routines.filter(r => r.active);
     const todayStr = new Date().toISOString().split('T')[0];
 
+    const currentDayOfWeekMap = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const currentDay = currentDayOfWeekMap[new Date().getDay()];
+
+    const existingTasks = await DataStore.getTasks(actor);
+    const todayTasks = existingTasks.filter(t => t.company_id === companyId && t.scheduled_date === todayStr);
+
     let createdCount = 0;
     for (const r of activeRoutines) {
+      const freq = (r.frequency || '').toLowerCase();
+      // Se for semanal e tiver dias específicos definidos, verificar se o dia de hoje está incluso
+      if (freq === 'semanal' && r.days_of_week && r.days_of_week.length > 0) {
+        if (!r.days_of_week.includes(currentDay)) {
+          continue;
+        }
+      }
+
+      // Evita duplicar tarefa da mesma rotina gerada no mesmo dia
+      const alreadyCreatedToday = todayTasks.some(t => 
+        t.title === `[Rotina] ${r.name}` && 
+        t.property_id === r.property_id
+      );
+      if (alreadyCreatedToday) {
+        continue;
+      }
+
       await DataStore.createTask({
         company_id: r.company_id,
         property_id: r.property_id,
@@ -1066,7 +1139,7 @@ export class DataStore {
 
   // ---- AUDIT LOG QUERY ----
   static async getAuditLogs(companyId?: string): Promise<AuditLog[]> {
-    if (isFirebaseConfigured) {
+    if (isFirestoreActive) {
       try {
         let q = query(collection(db, 'audit_logs'), orderBy('created_at', 'desc'), limit(100));
         if (companyId) {

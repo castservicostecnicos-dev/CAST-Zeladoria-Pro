@@ -51,7 +51,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'zeladores', label: 'Zeladores', icon: Users },
           { id: 'adm_predial', label: 'ADM Predial', icon: UserCheck },
           { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
-          { id: 'google_drive', label: 'Google Drive', icon: HardDrive },
           { id: 'perfil', label: 'Meu Perfil', icon: User },
         ];
       case 'ZELADOR':
