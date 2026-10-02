@@ -48,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           { id: 'tarefas', label: 'Tarefas', icon: CheckSquare },
           { id: 'rotinas', label: 'Rotinas', icon: Repeat },
           { id: 'solicitacoes', label: 'Solicitações', icon: Inbox },
+          { id: 'condominios', label: 'Condomínios', icon: Building2 },
           { id: 'zeladores', label: 'Zeladores', icon: Users },
           { id: 'adm_predial', label: 'ADM Predial', icon: UserCheck },
           { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },

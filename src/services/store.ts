@@ -462,8 +462,44 @@ export class DataStore {
       }
     }
 
-    await DataStore.logAction(actor, 'criação de empreendimento', 'property', newProp.id);
+    await DataStore.logAction(actor, 'criação de condomínio', 'property', newProp.id);
     return newProp;
+  }
+
+  static async updateProperty(id: string, updates: Partial<Property>, actor: Profile): Promise<Property> {
+    const list = getLocal<Property[]>(KEYS.PROPERTIES, initialProperties);
+    const updatedList = list.map(p => p.id === id ? { ...p, ...updates, updated_at: new Date().toISOString() } : p);
+    setLocal(KEYS.PROPERTIES, updatedList);
+
+    if (isFirestoreActive) {
+      try {
+        await updateDoc(doc(db, 'properties', id), { ...updates, updated_at: new Date().toISOString() });
+      } catch (e) {
+        console.warn('Erro ao atualizar property no Firestore:', e);
+      }
+    }
+
+    await DataStore.logAction(actor, 'edição de condomínio', 'property', id, updates as Record<string, unknown>);
+    return updatedList.find(p => p.id === id)!;
+  }
+
+  static async deleteProperty(id: string, actor: Profile): Promise<void> {
+    const list = getLocal<Property[]>(KEYS.PROPERTIES, initialProperties);
+    const updatedList = list.map(p => p.id === id ? { ...p, status: 'Inativo' as const, updated_at: new Date().toISOString() } : p);
+    setLocal(KEYS.PROPERTIES, updatedList);
+
+    if (isFirestoreActive) {
+      try {
+        await updateDoc(doc(db, 'properties', id), {
+          status: 'Inativo',
+          updated_at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn('Erro ao inativar property no Firestore:', e);
+      }
+    }
+
+    await DataStore.logAction(actor, 'inativação de condomínio', 'property', id);
   }
 
   // ---- PROFILES / USERS (EMPRESA & DEV) ----

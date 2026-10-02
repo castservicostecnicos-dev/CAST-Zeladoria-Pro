@@ -55,6 +55,10 @@ export interface Property {
   city: string;
   state: string;
   status: 'Ativo' | 'Inativo';
+  units?: number;
+  floors?: number;
+  common_areas?: string[];
+  notes?: string;
   created_at: string;
   updated_at: string;
 }

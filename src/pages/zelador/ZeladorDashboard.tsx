@@ -14,10 +14,11 @@ import {
   Shield,
   Sparkles,
   Info,
-  Layers
+  Layers,
+  Building2
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Task, TaskStatus } from '../../types';
+import { Task, TaskStatus, Property } from '../../types';
 import { DataStore } from '../../services/store';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatusBadge, PriorityBadge } from '../../components/ui/Badge';
@@ -35,6 +36,7 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
   const { user, role, isDevMaster, switchDemoRole } = useAuth();
   const toast = useToast();
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [activeTab, setActiveTab] = useState<'hoje' | 'pendentes' | 'em_andamento' | 'concluidas' | 'todas'>('hoje');
 
@@ -46,8 +48,12 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
 
   const loadTasks = async () => {
     if (!user) return;
-    const list = await DataStore.getTasks(user);
+    const [list, pList] = await Promise.all([
+      DataStore.getTasks(user),
+      user.company_id ? DataStore.getProperties(user.company_id) : Promise.resolve([])
+    ]);
     setTasks(list);
+    setProperties(pList);
   };
 
   useEffect(() => {
@@ -319,9 +325,26 @@ export const ZeladorDashboard: React.FC<ZeladorDashboardProps> = ({ onBack }) =>
 
                 {/* Meta details */}
                 <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                  <div className="flex items-center gap-1 font-medium text-slate-700">
-                    <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                    <span>{task.location || 'Área Comum'}</span>
+                  <div className="flex flex-wrap items-center gap-1.5 font-medium text-slate-700">
+                    {(() => {
+                      const taskCondo = properties.find(p => p.id === task.property_id);
+                      if (taskCondo) {
+                        return (
+                          <>
+                            <span className="inline-flex items-center gap-1 text-emerald-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] border border-emerald-200/60">
+                              <Building2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>{taskCondo.name}</span>
+                            </span>
+                            <span className="text-slate-300">•</span>
+                          </>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span>{task.location || 'Área Comum'}</span>
+                    </span>
                   </div>
 
                   <div className="flex items-center gap-1 text-[11px]">

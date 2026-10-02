@@ -110,6 +110,8 @@ function AppContent() {
           ? 'Rotinas Recorrentes' 
           : activeTab === 'solicitacoes' 
           ? 'Solicitações Prediais'
+          : activeTab === 'condominios'
+          ? 'Gestão de Condomínios'
           : activeTab === 'zeladores'
           ? 'Equipe de Zeladores'
           : activeTab === 'adm_predial'

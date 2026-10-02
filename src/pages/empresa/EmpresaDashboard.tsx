@@ -35,6 +35,7 @@ import {
   RefreshCw,
   ArrowLeft,
   ArrowRight,
+  MapPin,
   X
 } from 'lucide-react';
 import { 
@@ -126,7 +127,22 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
   const [assignZeladorForRequest, setAssignZeladorForRequest] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'task' | 'user' | 'routine'; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ type: 'task' | 'user' | 'routine' | 'property'; id: string; name: string } | null>(null);
+
+  // Property (Condomínio) state
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [editingProperty, setEditingProperty] = useState<Property | null>(null);
+  const [searchProperty, setSearchProperty] = useState('');
+  const [propertyForm, setPropertyForm] = useState({
+    name: '',
+    address: '',
+    city: 'São Paulo',
+    state: 'SP',
+    units: '',
+    floors: '',
+    notes: '',
+    status: 'Ativo' as 'Ativo' | 'Inativo',
+  });
 
   // Forms
   const [taskForm, setTaskForm] = useState({
@@ -420,7 +436,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       await DataStore.createProfile({
         auth_user_id: `auth-${Date.now()}`,
         company_id: user.company_id,
-        property_id: userForm.property_id,
+        property_id: userForm.property_id || (properties[0]?.id || null),
         role: userModalType,
         name: userForm.name,
         email: userForm.email,
@@ -446,10 +462,93 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     loadAll();
   };
 
+  // Property (Condomínio) Handlers
+  const handleOpenCreateProperty = () => {
+    setEditingProperty(null);
+    setPropertyForm({
+      name: '',
+      address: '',
+      city: 'São Paulo',
+      state: 'SP',
+      units: '',
+      floors: '',
+      notes: '',
+      status: 'Ativo',
+    });
+    setShowPropertyModal(true);
+  };
+
+  const handleOpenEditProperty = (prop: Property) => {
+    setEditingProperty(prop);
+    setPropertyForm({
+      name: prop.name,
+      address: prop.address || '',
+      city: prop.city || 'São Paulo',
+      state: prop.state || 'SP',
+      units: prop.units ? String(prop.units) : '',
+      floors: prop.floors ? String(prop.floors) : '',
+      notes: prop.notes || '',
+      status: prop.status || 'Ativo',
+    });
+    setShowPropertyModal(true);
+  };
+
+  const handleSaveProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !user.company_id) return;
+
+    if (!propertyForm.name.trim()) {
+      showToast('O nome do condomínio é obrigatório.', 'warning');
+      return;
+    }
+
+    try {
+      if (editingProperty) {
+        await DataStore.updateProperty(editingProperty.id, {
+          name: propertyForm.name.trim().toUpperCase(),
+          address: propertyForm.address.trim().toUpperCase(),
+          city: propertyForm.city.trim().toUpperCase(),
+          state: propertyForm.state.trim().toUpperCase(),
+          units: propertyForm.units ? parseInt(propertyForm.units, 10) : undefined,
+          floors: propertyForm.floors ? parseInt(propertyForm.floors, 10) : undefined,
+          notes: propertyForm.notes.trim().toUpperCase(),
+          status: propertyForm.status,
+        }, user);
+        showToast(`Condomínio "${propertyForm.name}" atualizado com sucesso!`, 'success');
+      } else {
+        await DataStore.createProperty({
+          company_id: user.company_id,
+          name: propertyForm.name.trim().toUpperCase(),
+          address: propertyForm.address.trim().toUpperCase(),
+          city: propertyForm.city.trim().toUpperCase(),
+          state: propertyForm.state.trim().toUpperCase(),
+          units: propertyForm.units ? parseInt(propertyForm.units, 10) : undefined,
+          floors: propertyForm.floors ? parseInt(propertyForm.floors, 10) : undefined,
+          notes: propertyForm.notes.trim().toUpperCase(),
+          status: propertyForm.status,
+        }, user);
+        showToast(`Novo condomínio "${propertyForm.name}" cadastrado com sucesso!`, 'success');
+      }
+
+      setShowPropertyModal(false);
+      loadAll();
+    } catch (err: any) {
+      showToast('Erro ao salvar condomínio: ' + (err?.message || 'Falha.'), 'error');
+    }
+  };
+
+  const handleTogglePropertyStatus = async (prop: Property) => {
+    if (!user) return;
+    const nextStatus = prop.status === 'Ativo' ? 'Inativo' : 'Ativo';
+    await DataStore.updateProperty(prop.id, { status: nextStatus }, user);
+    showToast(`Condomínio "${prop.name}" ${nextStatus === 'Ativo' ? 'ativado' : 'inativado'} com sucesso.`, 'info');
+    loadAll();
+  };
+
   const handleConfirmDelete = async () => {
     if (!user || !deleteTarget) return;
     const targetName = deleteTarget.name;
-    const targetType = deleteTarget.type === 'task' ? 'Tarefa' : deleteTarget.type === 'routine' ? 'Rotina' : 'Usuário';
+    const targetType = deleteTarget.type === 'task' ? 'Tarefa' : deleteTarget.type === 'routine' ? 'Rotina' : deleteTarget.type === 'property' ? 'Condomínio' : 'Usuário';
 
     if (deleteTarget.type === 'task') {
       await DataStore.deleteTask(deleteTarget.id, user);
@@ -457,6 +556,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       await DataStore.deleteProfile(deleteTarget.id, user);
     } else if (deleteTarget.type === 'routine') {
       await DataStore.deleteRoutine(deleteTarget.id, user);
+    } else if (deleteTarget.type === 'property') {
+      await DataStore.deleteProperty(deleteTarget.id, user);
     }
     setDeleteTarget(null);
     setShowConfirmDelete(false);
@@ -842,6 +943,36 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           </div>
         </button>
 
+        {/* Bloco: Condomínios */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onSelectSubTab) onSelectSubTab('condominios');
+          }}
+          className="group bg-white hover:bg-emerald-50/40 border border-slate-200/90 hover:border-emerald-400 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all text-left cursor-pointer flex flex-col justify-between min-h-[145px]"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold shadow-2xs group-hover:bg-emerald-600 group-hover:text-white transition">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-emerald-700 transition">
+              <span>Abrir</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+            </span>
+          </div>
+          <div className="my-1.5">
+            <div className="text-3xl font-black text-emerald-700 tracking-tight">
+              {properties.length}
+            </div>
+            <div className="text-xs font-bold text-slate-800 mt-1">Condomínios</div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full">
+              {properties.filter(p => p.status === 'Ativo').length} Ativos
+            </span>
+          </div>
+        </button>
+
         {/* Bloco 8: Zeladores */}
         <button
           type="button"
@@ -897,7 +1028,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
           </div>
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
             <span className="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full">
-              Condomínios
+              Gestão & Chamados
             </span>
           </div>
         </button>
@@ -1398,6 +1529,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
             <thead>
               <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                 <th className="px-5 py-3">Nome</th>
+                <th className="px-5 py-3">Condomínio Vinculado</th>
                 <th className="px-5 py-3">E-mail / Telefone</th>
                 <th className="px-5 py-3">CPF</th>
                 {roleType === 'ZELADOR' && <th className="px-5 py-3">Matrícula</th>}
@@ -1408,25 +1540,41 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
             <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
               {list.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan={7} className="px-5 py-8 text-center text-slate-400">
                     Nenhum usuário cadastrado nesta categoria.
                   </td>
                 </tr>
               ) : (
-                list.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                    <td className="px-5 py-3.5 font-bold text-slate-900">{u.name}</td>
-                    <td className="px-5 py-3.5">
-                      <div>{u.email}</div>
-                      <div className="text-[11px] text-slate-400">{u.phone || '-'}</div>
-                    </td>
-                    <td className="px-5 py-3.5 font-mono text-slate-600">{u.cpf || '-'}</td>
-                    {roleType === 'ZELADOR' && (
-                      <td className="px-5 py-3.5 font-mono text-slate-600">{u.badge_number || '-'}</td>
-                    )}
-                    <td className="px-5 py-3.5">
-                      <StatusBadge status={u.status} />
-                    </td>
+                list.map((u) => {
+                  const linkedProp = properties.find(p => p.id === u.property_id);
+
+                  return (
+                    <tr key={u.id} className="hover:bg-slate-50/80 transition">
+                      <td className="px-5 py-3.5 font-bold text-slate-900">{u.name}</td>
+                      <td className="px-5 py-3.5">
+                        {linkedProp ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <Building2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{linkedProp.name}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 italic">
+                            <AlertCircle className="w-3 h-3 text-amber-500 shrink-0" />
+                            <span>Sem condomínio</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div>{u.email}</div>
+                        <div className="text-[11px] text-slate-400">{u.phone || '-'}</div>
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-slate-600">{u.cpf || '-'}</td>
+                      {roleType === 'ZELADOR' && (
+                        <td className="px-5 py-3.5 font-mono text-slate-600">{u.badge_number || '-'}</td>
+                      )}
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={u.status} />
+                      </td>
                     <td className="px-5 py-3.5 text-right space-x-1">
                       <button
                         onClick={() => handleToggleUserStatus(u)}
@@ -1456,7 +1604,8 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
                       </button>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>
@@ -1465,6 +1614,213 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
     </div>
   );
 };
+
+  const renderPropertiesView = () => {
+    const filteredProps = properties.filter(p => 
+      p.name.toLowerCase().includes(searchProperty.toLowerCase()) ||
+      p.address.toLowerCase().includes(searchProperty.toLowerCase()) ||
+      p.city.toLowerCase().includes(searchProperty.toLowerCase())
+    );
+
+    return (
+      <div className="space-y-5 w-full max-w-full overflow-x-hidden animate-fade-in">
+        {/* Header & Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs">
+          <div>
+            <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-emerald-600" />
+              <span>Gestão de Condomínios & Empreendimentos</span>
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Cadastre e gerencie os condomínios atendidos pela empresa, vinculando a equipe de zeladores e síndicos.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
+            <button
+              type="button"
+              onClick={() => onSelectSubTab && onSelectSubTab('dashboard')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
+              title="Voltar aos Blocos da Visão Geral"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Voltar aos Blocos</span>
+            </button>
+            <button
+              onClick={handleOpenCreateProperty}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Condomínio</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Filter bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Buscar por nome, endereço ou cidade..."
+              value={searchProperty}
+              onChange={(e) => setSearchProperty(e.target.value.toUpperCase())}
+              className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 bg-white focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="text-xs font-medium text-slate-500">
+            Total: <strong>{properties.length}</strong> {properties.length === 1 ? 'condomínio' : 'condomínios'} ({properties.filter(p => p.status === 'Ativo').length} ativos)
+          </div>
+        </div>
+
+        {/* Grid of Condominium Cards */}
+        {filteredProps.length === 0 ? (
+          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+              <Building2 className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800">Nenhum condomínio encontrado</h4>
+            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+              Cadastre os condomínios atendidos pela sua empresa para atribuir os zeladores e administradores prediais.
+            </p>
+            <button
+              onClick={handleOpenCreateProperty}
+              className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Cadastrar Primeiro Condomínio</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredProps.map((prop) => {
+              const propZeladores = zeladores.filter(z => z.property_id === prop.id);
+              const propAdms = adms.filter(a => a.property_id === prop.id);
+              const propTasks = tasks.filter(t => t.property_id === prop.id);
+              const propPendingTasks = propTasks.filter(t => t.status !== 'CONCLUIDA');
+
+              return (
+                <div 
+                  key={prop.id} 
+                  className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs font-bold">
+                          <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 leading-tight">{prop.name}</h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                            prop.status === 'Ativo' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {prop.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditProperty(prop)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                          title="Editar condomínio"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeleteTarget({ type: 'property', id: prop.id, name: prop.name });
+                            setShowConfirmDelete(true);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Inativar/Excluir condomínio"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div className="flex items-start gap-1.5 text-xs text-slate-600 mt-3">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                      <span className="line-clamp-2">{prop.address} • {prop.city}/{prop.state}</span>
+                    </div>
+
+                    {/* Units & Floors if set */}
+                    {(prop.units || prop.floors) && (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-2">
+                        {prop.units && <span><strong>{prop.units}</strong> unidades</span>}
+                        {prop.units && prop.floors && <span>•</span>}
+                        {prop.floors && <span><strong>{prop.floors}</strong> andares</span>}
+                      </div>
+                    )}
+
+                    {/* Equipes vinculadas */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5 text-xs">
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                          <span>Zeladores Atribuídos:</span>
+                          <span className="text-emerald-700 font-bold">{propZeladores.length}</span>
+                        </div>
+                        {propZeladores.length === 0 ? (
+                          <span className="text-[11px] text-amber-600 italic">Nenhum zelador vinculado</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {propZeladores.map(z => (
+                              <span key={z.id} className="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">
+                                {z.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1 flex items-center justify-between">
+                          <span>ADM Predial / Síndicos:</span>
+                          <span className="text-blue-700 font-bold">{propAdms.length}</span>
+                        </div>
+                        {propAdms.length === 0 ? (
+                          <span className="text-[11px] text-amber-600 italic">Nenhum síndico vinculado</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {propAdms.map(a => (
+                              <span key={a.id} className="text-[11px] bg-blue-50 text-blue-800 px-2 py-0.5 rounded-md font-medium">
+                                {a.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Stats & Fast Actions */}
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-slate-500">
+                      <strong>{propPendingTasks.length}</strong> tarefas pendentes
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePropertyStatus(prop)}
+                      className={`text-[11px] font-bold px-2 py-1 rounded-lg transition cursor-pointer ${
+                        prop.status === 'Ativo' 
+                          ? 'text-amber-700 hover:bg-amber-50' 
+                          : 'text-emerald-700 hover:bg-emerald-50'
+                      }`}
+                    >
+                      {prop.status === 'Ativo' ? 'Inativar' : 'Reativar'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderReportsView = () => (
     <div className="space-y-6">
@@ -1711,6 +2067,7 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
       {activeSubTab === 'tarefas' && renderTasksTable()}
       {activeSubTab === 'rotinas' && renderRoutinesView()}
       {activeSubTab === 'solicitacoes' && renderRequestsView()}
+      {activeSubTab === 'condominios' && renderPropertiesView()}
       {activeSubTab === 'zeladores' && renderUsersView('ZELADOR')}
       {activeSubTab === 'adm_predial' && renderUsersView('ADM_PREDIAL')}
       {activeSubTab === 'relatorios' && renderReportsView()}
@@ -2202,6 +2559,45 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
             </div>
           </div>
 
+          {/* Condomínio / Prédio Vinculado */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700">
+                Condomínio / Empreendimento Vinculado *
+              </label>
+              {properties.length === 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserModal(false);
+                    handleOpenCreateProperty();
+                  }}
+                  className="text-[11px] text-blue-600 font-bold hover:underline"
+                >
+                  + Cadastrar Condomínio
+                </button>
+              )}
+            </div>
+            <select
+              required
+              value={userForm.property_id}
+              onChange={(e) => setUserForm({ ...userForm, property_id: e.target.value })}
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 bg-white"
+            >
+              <option value="">Selecione o condomínio...</option>
+              {properties.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name} — {p.city}/{p.state} {p.status === 'Inativo' ? '(Inativo)' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {userModalType === 'ADM_PREDIAL'
+                ? 'O Administrador Predial / Síndico terá acesso e gerenciará este condomínio específico.'
+                : 'Condomínio base no qual o zelador atuará e executará rotinas e tarefas.'}
+            </p>
+          </div>
+
           {userModalType === 'ZELADOR' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -2255,13 +2651,132 @@ export const EmpresaDashboard: React.FC<EmpresaDashboardProps> = ({
         </form>
       </Modal>
 
+      {/* Create / Edit Property (Condomínio) Modal */}
+      <Modal
+        isOpen={showPropertyModal}
+        onClose={() => {
+          setShowPropertyModal(false);
+          setEditingProperty(null);
+        }}
+        title={editingProperty ? "Editar Condomínio" : "Cadastrar Novo Condomínio"}
+        subtitle="Adicione ou atualize os dados do condomínio para organizar a equipe e as tarefas."
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSaveProperty} className="space-y-3.5">
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Nome do Condomínio / Prédio *</label>
+            <input
+              type="text"
+              required
+              value={propertyForm.name}
+              onChange={(e) => setPropertyForm({ ...propertyForm, name: e.target.value.toUpperCase() })}
+              placeholder="Ex: Condomínio Residencial Parque dos Ipês"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 uppercase"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Endereço Completo *</label>
+            <input
+              type="text"
+              required
+              value={propertyForm.address}
+              onChange={(e) => setPropertyForm({ ...propertyForm, address: e.target.value.toUpperCase() })}
+              placeholder="Ex: Av. Paulista, 1500 - Bela Vista"
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Cidade *</label>
+              <input
+                type="text"
+                required
+                value={propertyForm.city}
+                onChange={(e) => setPropertyForm({ ...propertyForm, city: e.target.value.toUpperCase() })}
+                placeholder="Ex: São Paulo"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Estado (UF) *</label>
+              <input
+                type="text"
+                required
+                maxLength={2}
+                value={propertyForm.state}
+                onChange={(e) => setPropertyForm({ ...propertyForm, state: e.target.value.toUpperCase() })}
+                placeholder="SP"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500 uppercase"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Total de Unidades / Apartamentos</label>
+              <input
+                type="number"
+                min="1"
+                value={propertyForm.units}
+                onChange={(e) => setPropertyForm({ ...propertyForm, units: e.target.value })}
+                placeholder="Ex: 72"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">Andares / Pavimentos</label>
+              <input
+                type="number"
+                min="1"
+                value={propertyForm.floors}
+                onChange={(e) => setPropertyForm({ ...propertyForm, floors: e.target.value })}
+                placeholder="Ex: 18"
+                className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">Observações Internas</label>
+            <input
+              type="text"
+              value={propertyForm.notes}
+              onChange={(e) => setPropertyForm({ ...propertyForm, notes: e.target.value.toUpperCase() })}
+              placeholder="Instruções de acesso à portaria, detalhes estruturais..."
+              className="w-full border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPropertyModal(false);
+                setEditingProperty(null);
+              }}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition"
+            >
+              {editingProperty ? 'Salvar Alterações' : 'Cadastrar Condomínio'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Confirm Delete Modal (Section 48) */}
       <ConfirmModal
         isOpen={showConfirmDelete}
         onClose={() => setShowConfirmDelete(false)}
         onConfirm={handleConfirmDelete}
-        title={`Excluir ${deleteTarget?.type === 'task' ? 'Tarefa' : deleteTarget?.type === 'routine' ? 'Rotina Recorrente' : 'Usuário'}`}
-        message={`Tem certeza que deseja excluir "${deleteTarget?.name}"? Esta ação removerá ${deleteTarget?.type === 'routine' ? 'esta rotina periódica da empresa' : deleteTarget?.type === 'task' ? 'esta tarefa do sistema' : 'este usuário'}.`}
+        title={`Excluir ${deleteTarget?.type === 'task' ? 'Tarefa' : deleteTarget?.type === 'routine' ? 'Rotina Recorrente' : deleteTarget?.type === 'property' ? 'Condomínio' : 'Usuário'}`}
+        message={`Tem certeza que deseja excluir "${deleteTarget?.name}"? Esta ação removerá ${deleteTarget?.type === 'routine' ? 'esta rotina periódica da empresa' : deleteTarget?.type === 'task' ? 'esta tarefa do sistema' : deleteTarget?.type === 'property' ? 'este condomínio da base da empresa' : 'este usuário'}.`}
         confirmText="Sim, excluir"
         cancelText="Cancelar"
         isDestructive={true}
